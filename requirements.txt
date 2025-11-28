@@ -1,0 +1,44 @@
+# SecureVoteChain - Python Dependencies
+
+# Core Framework
+fastapi>=0.120.1
+uvicorn>=0.38.0
+jinja2>=3.1.6
+python-multipart>=0.0.20
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+
+# Database - Choose ONE:
+# Option 1: Supabase PostgreSQL (Recommended for Production)
+supabase==2.3.0
+postgrest-py>=0.10.0
+
+# Option 2: SQLAlchemy + PostgreSQL
+# psycopg2-binary>=2.9.9
+# sqlalchemy>=2.0.0
+
+# Option 3: MongoDB
+# pymongo>=4.6.0
+
+# Security & Authentication
+python-dotenv>=1.0.0
+bcrypt>=4.1.2
+pyjwt>=2.8.0
+
+# CORS & Middleware
+python-multipart>=0.0.20
+
+# Development Tools
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+httpx>=0.25.0
+
+# File Processing
+pandas>=2.2.0
+openpyxl>=3.1.0        # Excel file support
+
+# Optional: For enhanced features
+# qrcode>=7.4.2          # QR code generation
+# pillow>=10.1.0         # Image processing
+# reportlab>=4.0.7       # PDF generation
+# python-magic>=0.4.27   # File type detection

@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.Python
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# Environment Variables (CRITICAL - DO NOT UPLOAD!)
+.env
+.env.local
+*.env
+
+# Database & Sensitive Data
+*.db
+*.sqlite
+*.sqlite3
+data/*.json
+blockchain.json
+voters.json
+votes.json
+audit_logs.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+
+# Logs
+*.log
+logs/
+
+# Supabase secrets (NEVER UPLOAD!)
+*supabase_key*
+*supabase_url*
+
+# Replit
+.replit
+replit.nix
+.breakpoints
+
+# Test files
+test_*.py
+tests/__pycache__/
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
