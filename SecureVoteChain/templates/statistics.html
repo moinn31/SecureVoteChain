@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 Voting Statistics - SecureVoteChain</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/dark-mode.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="/static/translations.js"></script>
+    <script src="/static/theme-manager.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        }
+
+        /* Tricolor Banner */
+        .tricolor-banner {
+            height: 8px;
+            background: linear-gradient(to right, #FF9933 33.33%, #FFFFFF 33.33%, #FFFFFF 66.66%, #138808 66.66%);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            animation: slideDown 0.5s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-100%);
+            }
+            to {
+                transform: translateY(0);
+            }
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px 20px;
+            padding-top: 40px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            animation: fadeIn 0.8s ease;
+        }
+
+        .header h1 {
+            font-size: 42px;
+            background: linear-gradient(135deg, #FF9933, #000080, #138808);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            color: #555;
+            font-size: 16px;
+        }
+
+        .stats-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+            animation: fadeIn 1s ease;
+        }
+
+        .stat-box {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            text-align: center;
+            transition: all 0.3s ease;
+            border-top: 4px solid #FF9933;
+        }
+
+        .stat-box:nth-child(2) {
+            border-top-color: #138808;
+        }
+
+        .stat-box:nth-child(3) {
+            border-top-color: #000080;
+        }
+
+        .stat-box:nth-child(4) {
+            border-top-color: #FF6600;
+        }
+
+        .stat-box:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .stat-box .number {
+            font-size: 48px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin: 10px 0;
+        }
+
+        .stat-box .label {
+            font-size: 14px;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-box .icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .charts-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .chart-card {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            animation: fadeIn 1.2s ease;
+        }
+
+        .chart-card h3 {
+            color: #000080;
+            margin-bottom: 20px;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .state-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-top: 40px;
+        }
+
+        .state-card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 3px 15px rgba(0, 0, 0, 0.08);
+            border-left: 5px solid #FF9933;
+            transition: all 0.3s ease;
+            animation: fadeIn 1.4s ease;
+        }
+
+        .state-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 5px 25px rgba(255, 153, 51, 0.2);
+        }
+
+        .state-card h4 {
+            color: #000080;
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .state-stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #ecf0f1;
+            font-size: 14px;
+        }
+
+        .state-stat:last-child {
+            border-bottom: none;
+        }
+
+        .state-stat .label {
+            color: #7f8c8d;
+        }
+
+        .state-stat .value {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .back-button {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: linear-gradient(135deg, #FF9933, #FF6600);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            text-decoration: none;
+            box-shadow: 0 4px 15px rgba(255, 153, 51, 0.4);
+            font-weight: 600;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        .back-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 25px rgba(255, 153, 51, 0.5);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            font-size: 18px;
+            color: #7f8c8d;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+
+            .state-list {
+                grid-template-columns: 1fr;
+            }
+
+            .back-button {
+                bottom: 20px;
+                right: 20px;
+                padding: 12px 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="tricolor-banner"></div>
+
+    <div class="container">
+        <div class="header">
+            <h1>🇮🇳 Voting Statistics Dashboard</h1>
+            <p>Real-time voting data across all Indian states</p>
+        </div>
+
+        <div id="loading" class="loading">
+            <div style="font-size: 48px; margin-bottom: 20px;">⏳</div>
+            <div>Loading statistics...</div>
+        </div>
+
+        <div id="statsContent" style="display: none;">
+            <div class="stats-overview">
+                <div class="stat-box">
+                    <div class="icon">🗳️</div>
+                    <div class="number" id="totalElections">0</div>
+                    <div class="label">Total Elections</div>
+                </div>
+                <div class="stat-box">
+                    <div class="icon">✅</div>
+                    <div class="number" id="activeElections">0</div>
+                    <div class="label">Active Elections</div>
+                </div>
+                <div class="stat-box">
+                    <div class="icon">📊</div>
+                    <div class="number" id="totalVotes">0</div>
+                    <div class="label">Total Votes Cast</div>
+                </div>
+                <div class="stat-box">
+                    <div class="icon">🗺️</div>
+                    <div class="number" id="totalStates">0</div>
+                    <div class="label">Active States</div>
+                </div>
+            </div>
+
+            <div class="charts-section">
+                <div class="chart-card">
+                    <h3>📈 Elections by State</h3>
+                    <canvas id="electionsChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>🗳️ Votes by State</h3>
+                    <canvas id="votesChart"></canvas>
+                </div>
+            </div>
+
+            <h2 style="text-align: center; color: #000080; margin-bottom: 30px; font-size: 28px;">State-wise Breakdown</h2>
+            <div class="state-list" id="stateList"></div>
+        </div>
+    </div>
+
+    <a href="/" class="back-button">🏠 Back to Home</a>
+
+    <script>
+        let electionsChart = null;
+        let votesChart = null;
+
+        async function loadStatistics() {
+            try {
+                const response = await fetch('/api/public/statistics');
+                const data = await response.json();
+
+                if (data.success) {
+                    // Update overview stats
+                    document.getElementById('totalElections').textContent = data.overall.total_elections;
+                    document.getElementById('activeElections').textContent = data.overall.active_elections;
+                    document.getElementById('totalVotes').textContent = data.overall.total_votes;
+                    document.getElementById('totalStates').textContent = data.overall.total_states;
+
+                    // Prepare data for charts
+                    const statesWithData = Object.entries(data.by_state)
+                        .filter(([_, stats]) => stats.total_elections > 0 || stats.total_votes > 0)
+                        .sort((a, b) => b[1].total_votes - a[1].total_votes)
+                        .slice(0, 10); // Top 10 states
+
+                    const stateNames = statesWithData.map(([state, _]) => state);
+                    const electionsData = statesWithData.map(([_, stats]) => stats.total_elections);
+                    const votesData = statesWithData.map(([_, stats]) => stats.total_votes);
+
+                    // Create charts
+                    createElectionsChart(stateNames, electionsData);
+                    createVotesChart(stateNames, votesData);
+
+                    // Create state cards
+                    createStateCards(data.by_state);
+
+                    // Show content
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('statsContent').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error loading statistics:', error);
+                document.getElementById('loading').innerHTML = `
+                    <div style="font-size: 48px; margin-bottom: 20px;">❌</div>
+                    <div>Error loading statistics. Please try again later.</div>
+                `;
+            }
+        }
+
+        function createElectionsChart(labels, data) {
+            const ctx = document.getElementById('electionsChart').getContext('2d');
+            if (electionsChart) electionsChart.destroy();
+
+            electionsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Number of Elections',
+                        data: data,
+                        backgroundColor: 'rgba(255, 153, 51, 0.7)',
+                        borderColor: '#FF9933',
+                        borderWidth: 2,
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createVotesChart(labels, data) {
+            const ctx = document.getElementById('votesChart').getContext('2d');
+            if (votesChart) votesChart.destroy();
+
+            votesChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Number of Votes',
+                        data: data,
+                        backgroundColor: 'rgba(19, 136, 8, 0.7)',
+                        borderColor: '#138808',
+                        borderWidth: 2,
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createStateCards(stateData) {
+            const stateList = document.getElementById('stateList');
+            stateList.innerHTML = '';
+
+            // Filter and sort states with data
+            const statesWithData = Object.entries(stateData)
+                .filter(([_, stats]) => stats.total_elections > 0 || stats.total_votes > 0)
+                .sort((a, b) => b[1].total_votes - a[1].total_votes);
+
+            if (statesWithData.length === 0) {
+                stateList.innerHTML = '<p style="text-align: center; color: #7f8c8d; grid-column: 1/-1;">No voting data available yet.</p>';
+                return;
+            }
+
+            statesWithData.forEach(([state, stats]) => {
+                const card = document.createElement('div');
+                card.className = 'state-card';
+                card.innerHTML = `
+                    <h4>${state}</h4>
+                    <div class="state-stat">
+                        <span class="label">Total Elections</span>
+                        <span class="value">${stats.total_elections}</span>
+                    </div>
+                    <div class="state-stat">
+                        <span class="label">Active Elections</span>
+                        <span class="value" style="color: #138808;">${stats.active_elections}</span>
+                    </div>
+                    <div class="state-stat">
+                        <span class="label">Completed Elections</span>
+                        <span class="value">${stats.completed_elections}</span>
+                    </div>
+                    <div class="state-stat">
+                        <span class="label">Total Votes Cast</span>
+                        <span class="value" style="color: #FF9933; font-size: 16px;">${stats.total_votes}</span>
+                    </div>
+                `;
+                stateList.appendChild(card);
+            });
+        }
+
+        // Load statistics on page load
+        document.addEventListener('DOMContentLoaded', loadStatistics);
+
+        // Auto-refresh every 30 seconds
+        setInterval(loadStatistics, 30000);
+    </script>
+</body>
+</html>

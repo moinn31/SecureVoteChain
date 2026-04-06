@@ -24,6 +24,7 @@ ENV/
 *.sqlite
 *.sqlite3
 data/*.json
+SecureVoteChain/data/*.json
 blockchain.json
 voters.json
 votes.json
@@ -54,6 +55,7 @@ logs/
 .replit
 replit.nix
 .breakpoints
+SecureVoteChain/.local/
 
 # Test files
 test_*.py

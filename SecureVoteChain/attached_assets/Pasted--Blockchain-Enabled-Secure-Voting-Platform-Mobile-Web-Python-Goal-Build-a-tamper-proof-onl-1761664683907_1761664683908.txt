@@ -1,0 +1,107 @@
+🗳️ Blockchain-Enabled Secure Voting Platform (Mobile + Web, Python)
+
+Goal:
+Build a tamper-proof online voting platform using blockchain technology to ensure transparency, immutability, and security in digital elections.
+Voters authenticate using Aadhaar / Govt ID (legally compliant) and biometric verification, while all votes are recorded immutably on-chain.
+
+🔐 Core Objectives
+
+Create a secure, transparent, and auditable e-voting system.
+
+Guarantee vote anonymity while allowing public verifiability.
+
+Prevent double voting, tampering, or fraud via smart contracts.
+
+Ensure end-to-end verifiability and legal compliance for digital identity use.
+
+⚙️ Technology Stack
+
+Frontend: React Native / Ionic React (Mobile + Web PWA)
+Backend: Python (FastAPI or Django REST)
+Blockchain:
+
+Recommended: Permissioned Hyperledger Fabric (for e-governance)
+
+Alternative: Ethereum / Polygon (EVM-compatible) using web3.py + Solidity
+Storage: PostgreSQL (metadata), IPFS (public assets)
+Smart Contracts: Solidity (voting, tallying, audit)
+Authentication: Aadhaar/eKYC API (or alternate verified ID) + Device Biometrics
+Deployment: Docker + Cloud VM (or Government-approved servers)
+
+🧩 Main Features
+
+Admin:
+
+Create & manage elections, candidates, and time windows
+
+Approve verified voters (after KYC/biometric validation)
+
+View live or final vote tallies via dashboard
+
+Voter:
+
+Register with Aadhaar/eKYC + biometric verification
+
+Receive one-time voting token (decoupled from ID)
+
+Cast encrypted vote from mobile or web
+
+Verify vote inclusion using blockchain transaction hash
+
+Blockchain Logic:
+
+Smart contract enforces single vote per token
+
+Votes stored as encrypted commitments
+
+Results tallied on-chain or through threshold decryption
+
+🧠 Security Highlights
+
+Blockchain-based immutability + audit trail
+
+Biometric + ID verification for voter authenticity
+
+Commit-reveal protocol for anonymous vote storage
+
+Smart contract audit + penetration testing required
+
+Key management via HSM / KMS, never store private keys or raw biometrics
+
+⚖️ Compliance & Privacy
+
+Aadhaar/eKYC use must follow UIDAI and local regulations — obtain explicit consent.
+
+No direct identity stored with vote data.
+
+All personal data encrypted at rest and erased post-election.
+
+📊 Deliverables (MVP)
+
+Mobile & Web voting prototype (React Native / PWA)
+
+Python backend (FastAPI) + blockchain integration via web3.py
+
+Smart contract for secure voting + tallying (Solidity)
+
+Admin dashboard with results & audit view
+
+Documentation + architecture diagram + basic test suite
+
+🚀 Stretch Goals
+
+Zero-Knowledge Proof–based privacy verification
+
+Multi-trustee threshold decryption
+
+Multilingual voter interface (Hindi + English)
+
+Automated election report generation
+
+🧾 Output Expectation
+
+A fully functional secure voting MVP where:
+✅ Voters authenticate via Aadhaar/eKYC + biometric
+✅ Each vote is recorded immutably on blockchain
+✅ Results are verifiable yet voter-anonymous
+✅ Admin can manage and audit elections securely

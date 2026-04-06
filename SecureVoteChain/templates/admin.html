@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - SecureVoteChain</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/dark-mode.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="/static/translations.js"></script>
+    <script src="/static/theme-manager.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #FFFFFF;
+            color: #2c3e50;
+        }
+        
+        /* Tricolor top banner */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 8px;
+            background: linear-gradient(to right, #FF9933 33.33%, #FFFFFF 33.33%, #FFFFFF 66.66%, #138808 66.66%);
+            z-index: 10000;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Login Screen Styles */
+        .login-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e9ecef 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 30px 20px;
+            z-index: 1000;
+            animation: fadeIn 0.5s ease;
+            overflow-y: auto;
+        }
+        
+        .login-screen > div {
+            width: 100%;
+            max-width: 900px;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .login-card {
+            background: white;
+            padding: 45px 40px;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            animation: slideIn 0.3s ease;
+            border-top: 4px solid #FF9933;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            position: fixed;
+            top: 8px;
+            left: 0;
+            width: 280px;
+            height: calc(100% - 8px);
+            background: linear-gradient(180deg, #2c3e50 0%, #1a252f 100%);
+            padding: 0;
+            overflow-y: auto;
+            z-index: 100;
+            box-shadow: 4px 0 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .sidebar-header {
+            padding: 30px 20px;
+            border-bottom: 1px solid rgba(255, 153, 51, 0.2);
+            background: linear-gradient(135deg, rgba(255, 153, 51, 0.1), transparent);
+        }
+
+        .sidebar-nav {
+            padding: 20px 0;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px 25px;
+            color: #95a5a6;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            font-size: 15px;
+        }
+
+        .nav-item:hover {
+            background: rgba(255, 153, 51, 0.08);
+            color: white;
+        }
+
+        .nav-item.active {
+            background: linear-gradient(90deg, rgba(255, 153, 51, 0.2), transparent);
+            color: white;
+            border-left: 4px solid #FF9933;
+            box-shadow: 0 2px 8px rgba(255, 153, 51, 0.2);
+        }
+
+        /* Main Content Area */
+        .main-content {
+            margin-left: 280px;
+            min-height: 100vh;
+            padding-bottom: 40px;
+            padding-top: 8px;
+            background: linear-gradient(135deg, rgba(255, 153, 51, 0.02) 0%, rgba(255, 255, 255, 1) 50%, rgba(19, 136, 8, 0.02) 100%);
+        }
+
+        /* Topbar */
+        .topbar {
+            background: white;
+            padding: 25px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            position: sticky;
+            top: 8px;
+            z-index: 90;
+            border-bottom: 2px solid rgba(255, 153, 51, 0.1);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        /* Content Area */
+        .content-area {
+            padding: 30px;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 14px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 2px solid rgba(255, 153, 51, 0.1);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 24px rgba(255, 153, 51, 0.15);
+            border-color: #FF9933;
+        }
+
+        /* Panel Card */
+        .panel-card {
+            background: white;
+            padding: 30px;
+            border-radius: 14px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+            border: 2px solid rgba(0, 0, 128, 0.05);
+        }
+
+        /* Form Styles */
+        .form-group {
+            margin-bottom: 22px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #000080;
+            font-size: 15px;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 14px 18px;
+            border: 2px solid rgba(0, 0, 128, 0.15);
+            border-radius: 10px;
+            font-size: 15px;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.3s ease;
+            background: white;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #FF9933;
+            box-shadow: 0 0 0 4px rgba(255, 153, 51, 0.1);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        /* Candidate Row - Enhanced Grid Layout */
+        .candidate-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 120px 120px 50px;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 12px;
+            background: #f9fafb;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .candidate-row:hover {
+            background: #f3f4f6;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .candidate-row input {
+            padding: 10px;
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+            transition: border-color 0.3s;
+        }
+        
+        .candidate-row input:focus {
+            outline: none;
+            border-color: #FF9933;
+        }
+        
+        .candidate-row label {
+            transition: all 0.3s ease;
+        }
+        
+        .candidate-row label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        /* Responsive Layout for Smaller Screens */
+        @media (max-width: 1200px) {
+            .candidate-row {
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .candidate-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Button Styles */
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #FF9933, #FF6600);
+            color: white;
+            box-shadow: 0 4px 12px rgba(255, 153, 51, 0.25);
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #FF6600, #FF4500);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(255, 153, 51, 0.35);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #138808;
+            border: 2px solid #138808;
+            box-shadow: 0 2px 8px rgba(19, 136, 8, 0.1);
+        }
+
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #138808, #0a5a05);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(19, 136, 8, 0.25);
+        }
+
+        /* Info Box */
+        .info-box {
+            background: linear-gradient(135deg, rgba(255, 153, 51, 0.08), rgba(19, 136, 8, 0.08));
+            padding: 18px;
+            border-radius: 12px;
+            border-left: 4px solid #FF9933;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Message Box */
+        .message-box {
+            position: fixed;
+            top: 28px;
+            right: 20px;
+            padding: 16px 28px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+            z-index: 1001;
+            display: none;
+            animation: slideInRight 0.3s ease;
+            font-weight: 600;
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .message-box.success {
+            background: linear-gradient(135deg, #138808, #0a5a05);
+            color: white;
+        }
+
+        .message-box.error {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            color: white;
+        }
+
+        /* Dashboard Views */
+        .dashboard-view {
+            animation: fadeInUp 0.4s ease;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 968px) {
+            .sidebar {
+                width: 70px;
+            }
+
+            .sidebar-header h3,
+            .sidebar-header p,
+            .nav-item span:last-child {
+                display: none;
+            }
+
+            .main-content {
+                margin-left: 70px;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .login-card {
+                padding: 40px 30px;
+                margin: 0 15px;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .topbar {
+                flex-direction: column;
+                gap: 15px;
+                align-items: flex-start;
+            }
+
+            .candidate-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Election Card Styles */
+        .election-card {
+            background: white;
+            padding: 20px;
+            border-radius: 14px;
+            margin-bottom: 15px;
+            border-left: 5px solid #FF9933;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .election-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 153, 51, 0.15);
+        }
+
+        .election-card.active {
+            border-left-color: #138808;
+            background: linear-gradient(to right, rgba(19, 136, 8, 0.02), white);
+        }
+
+        .election-card.ended {
+            border-left-color: #7f8c8d;
+            opacity: 0.85;
+        }
+
+        .election-card h4 {
+            margin-bottom: 10px;
+            color: #000080;
+            font-weight: 600;
+        }
+
+        .election-card p {
+            color: #555;
+            font-size: 14px;
+            margin: 5px 0;
+        }
+
+        .election-badge {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .election-badge.active {
+            background: linear-gradient(135deg, #138808, #0a5a05);
+            color: white;
+            box-shadow: 0 2px 8px rgba(19, 136, 8, 0.3);
+        }
+
+        .election-badge.ended {
+            background: #ecf0f1;
+            color: #7f8c8d;
+        }
+
+        /* Audit Log Styles */
+        .audit-entry {
+            background: white;
+            padding: 18px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            border-left: 4px solid #000080;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+            transition: all 0.3s ease;
+        }
+
+        .audit-entry:hover {
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transform: translateX(3px);
+        }
+
+        .audit-entry.create {
+            border-left-color: #138808;
+            background: linear-gradient(to right, rgba(19, 136, 8, 0.03), white);
+        }
+
+        .audit-entry.delete {
+            border-left-color: #e74c3c;
+            background: linear-gradient(to right, rgba(231, 76, 60, 0.03), white);
+        }
+
+        .audit-entry .timestamp {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .audit-entry .action {
+            font-weight: 600;
+            color: #000080;
+            margin-bottom: 5px;
+            font-size: 15px;
+        }
+
+        .audit-entry .details {
+            font-size: 13px;
+            color: #555;
+        }
+
+        /* Blockchain Block Styles */
+        .block-card {
+            background: white;
+            padding: 22px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            border: 2px solid rgba(0, 0, 128, 0.1);
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .block-card:hover {
+            border-color: rgba(255, 153, 51, 0.3);
+            box-shadow: 0 5px 20px rgba(255, 153, 51, 0.15);
+        }
+
+        .block-card .block-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            font-weight: 600;
+            color: #000080;
+            padding-bottom: 10px;
+            border-bottom: 2px solid rgba(255, 153, 51, 0.2);
+        }
+
+        .block-card .block-data {
+            background: linear-gradient(135deg, rgba(255, 153, 51, 0.02), rgba(19, 136, 8, 0.02));
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            border: 1px solid rgba(0, 0, 128, 0.08);
+        }
+
+        .block-card .hash {
+            word-break: break-all;
+            color: #FF6600;
+            margin: 5px 0;
+            font-weight: 600;
+        }
+
+        /* Login Button Hover */
+        #adminLoginForm button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 153, 51, 0.4);
+            background: linear-gradient(135deg, #FF6600, #FF9933);
+        }
+
+        #adminLoginForm button:active {
+            transform: translateY(0);
+            box-shadow: 0 3px 10px rgba(255, 153, 51, 0.3);
+        }
+
+        /* Login Form Input Focus */
+        #adminLoginForm input:focus {
+            outline: none;
+            border: 2px solid #FF9933 !important;
+            box-shadow: 0 0 0 3px rgba(255, 153, 51, 0.1);
+        }
+
+        #adminLoginForm input::placeholder {
+            color: #aaa;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-screen">
+        <div>
+            <!-- Beautiful Header Banner -->
+            <header style="background: linear-gradient(135deg, #FF9933 0%, #FF6600 100%); color: white; padding: 30px 40px; border-radius: 16px; margin-bottom: 35px; box-shadow: 0 8px 24px rgba(255, 153, 51, 0.25); animation: fadeIn 0.6s ease;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                    <div>
+                        <h1 style="margin: 0; font-size: 36px; font-weight: 700;">🔐 <span data-translate="adminPortal">Admin Portal</span></h1>
+                        <p style="margin: 10px 0 0 0; opacity: 0.95; font-size: 16px;" data-translate="adminSubtitle">🎯 Manage Elections, Monitor Votes, and Ensure Transparency</p>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <!-- Language Selector -->
+                        <select id="languageSelector" onchange="setLanguage(this.value)" style="padding: 10px 35px 10px 15px; border: 2px solid rgba(255,255,255,0.3); border-radius: 8px; background: rgba(255,255,255,0.95); color: #2c3e50; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.3s;">
+                            <option value="en">🌐 English</option>
+                            <option value="hi">हिंदी</option>
+                            <option value="ta">தமிழ்</option>
+                            <option value="te">తెలుగు</option>
+                            <option value="kn">ಕನ್ನಡ</option>
+                            <option value="ml">മലയാളം</option>
+                            <option value="mr">मराठी</option>
+                            <option value="bn">বাংলা</option>
+                            <option value="gu">ગુજરાતી</option>
+                            <option value="pa">ਪੰਜਾਬੀ</option>
+                            <option value="or">ଓଡ଼ିଆ</option>
+                        </select>
+                        <span style="background: rgba(255,255,255,0.25); padding: 12px 24px; border-radius: 25px; font-size: 13px; font-weight: 700; letter-spacing: 0.5px;">ADMIN ACCESS</span>
+                    </div>
+                </div>
+            </header>
+            
+            <style>
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(-10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+            </style>
+            
+            <div class="login-card">
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <div style="width: 90px; height: 90px; background: linear-gradient(135deg, #FF9933, #FF6600); border-radius: 20px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; font-size: 45px; box-shadow: 0 6px 20px rgba(255, 153, 51, 0.3);">
+                        🔐
+                    </div>
+                    <h2 style="margin: 0; font-size: 28px; color: #2c3e50; font-weight: 600;">Secure Login</h2>
+                    <p style="margin: 10px 0 0 0; color: #7f8c8d; font-size: 15px;">Enter your credentials to access the dashboard</p>
+                </div>
+                
+                <form id="adminLoginForm">
+                    <div class="form-group">
+                        <label style="font-weight: 500; color: #2c3e50; font-size: 14px; display: block; margin-bottom: 8px;"><span data-translate="username">👤 Username</span></label>
+                        <input type="text" id="adminUsername" placeholder="Enter your username" required style="border: 2px solid #e0e0e0; padding: 14px 16px; border-radius: 8px; width: 100%; box-sizing: border-box; font-size: 15px; transition: all 0.3s ease; font-family: 'Inter', sans-serif;">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight: 500; color: #2c3e50; font-size: 14px; display: block; margin-bottom: 8px;"><span data-translate="password">🔑 Password</span></label>
+                        <input type="password" id="adminPassword" placeholder="Enter your password" required style="border: 2px solid #e0e0e0; padding: 14px 16px; border-radius: 8px; width: 100%; box-sizing: border-box; font-size: 15px; transition: all 0.3s ease; font-family: 'Inter', sans-serif;">
+                    </div>
+                    <button type="submit" class="btn" style="width: 100%; padding: 16px; font-size: 17px; font-weight: 600; background: linear-gradient(135deg, #FF9933, #FF6600); color: white; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 15px rgba(255, 153, 51, 0.35); transition: all 0.3s ease; margin-top: 10px;">
+                        <span data-translate="adminLogin">🚀 Login to Dashboard</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Layout -->
+    <div id="dashboardLayout" style="display: none;">
+        <!-- Sidebar -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #FF9933, #FF6600); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px;">
+                        🔐
+                    </div>
+                    <div>
+                        <h3 style="margin: 0; font-size: 18px; color: white;">SecureVote</h3>
+                        <p style="margin: 0; font-size: 12px; color: #95a5a6;">Admin Portal</p>
+                    </div>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-view="overview">
+                    <span style="font-size: 20px;">📊</span>
+                    <span data-translate="dashboard">Overview</span>
+                </a>
+                <a href="#" class="nav-item" data-view="create">
+                    <span style="font-size: 20px;">➕</span>
+                    <span data-translate="createElection">Create Election</span>
+                </a>
+                <a href="#" class="nav-item" data-view="elections">
+                    <span style="font-size: 20px;">🗳️</span>
+                    <span data-translate="elections">Elections</span>
+                </a>
+                <a href="#" class="nav-item" data-view="import">
+                    <span style="font-size: 20px;">📤</span>
+                    <span data-translate="importVoters">Import Voters</span>
+                </a>
+                <a href="#" class="nav-item" data-view="analytics">
+                    <span style="font-size: 20px;">📈</span>
+                    <span data-translate="analytics">Analytics</span>
+                </a>
+                <a href="#" class="nav-item" data-view="audit">
+                    <span style="font-size: 20px;">📋</span>
+                    <span data-translate="auditLog">Audit Logs</span>
+                </a>
+                <a href="#" class="nav-item" data-view="blockchain">
+                    <span style="font-size: 20px;">⛓️</span>
+                    <span>Blockchain</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Topbar -->
+            <div class="topbar">
+                <div>
+                    <h1 style="margin: 0; font-size: 24px; color: #2c3e50;" id="viewTitle">Dashboard Overview</h1>
+                    <p style="margin: 5px 0 0 0; color: #7f8c8d; font-size: 14px;">Welcome back, <span id="adminName"></span></p>
+                </div>
+                <div class="user-info">
+                    <!-- Language Selector -->
+                    <div style="margin-right: 20px;">
+                        <select id="dashboardLanguageSelector" onchange="setLanguage(this.value)" style="padding: 8px 30px 8px 12px; border: 2px solid #e0e0e0; border-radius: 8px; background: white; color: #2c3e50; font-size: 14px; font-weight: 500; cursor: pointer; transition: border-color 0.3s;">
+                            <option value="en">🌐 English</option>
+                            <option value="hi">हिंदी</option>
+                            <option value="ta">தமிழ்</option>
+                            <option value="te">తెలుగు</option>
+                            <option value="kn">ಕನ್ನಡ</option>
+                            <option value="ml">മലയാളം</option>
+                            <option value="mr">मराठी</option>
+                            <option value="bn">বাংলা</option>
+                            <option value="gu">ગુજરાતી</option>
+                            <option value="pa">ਪੰਜਾਬੀ</option>
+                            <option value="or">ଓଡ଼ିଆ</option>
+                        </select>
+                    </div>
+                    <!-- Live Notifications Bell -->
+                    <div style="position: relative; margin-right: 20px;">
+                        <button id="notificationBell" onclick="toggleNotifications()" style="background: none; border: none; font-size: 24px; cursor: pointer; position: relative; transition: transform 0.3s ease;">
+                            🔔
+                            <span id="notificationBadge" style="position: absolute; top: -5px; right: -5px; background: #e74c3c; color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; font-weight: bold; display: none; align-items: center; justify-content: center;">0</span>
+                        </button>
+                        <div id="notificationDropdown" style="display: none; position: absolute; right: 0; top: 50px; background: white; border-radius: 12px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2); width: 350px; max-height: 400px; overflow-y: auto; z-index: 1000;">
+                            <div style="padding: 15px; border-bottom: 2px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center;">
+                                <h4 style="margin: 0; color: #000080;">Notifications</h4>
+                                <button onclick="clearNotifications()" style="background: none; border: none; color: #FF6600; cursor: pointer; font-size: 12px; font-weight: 600;">Clear All</button>
+                            </div>
+                            <div id="notificationList" style="padding: 10px;">
+                                <p style="text-align: center; color: #7f8c8d; padding: 20px;">No new notifications</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="text-align: right; margin-right: 15px;">
+                        <p style="margin: 0; font-weight: 600; color: #2c3e50; font-size: 14px;" id="adminRole"></p>
+                        <p style="margin: 0; color: #7f8c8d; font-size: 12px;" id="adminState"></p>
+                    </div>
+                    <button id="logoutBtn" class="btn btn-secondary" style="padding: 10px 20px;">
+                        <span data-translate="logout">Logout</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- Overview View -->
+                <div id="overviewView" class="dashboard-view">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                <div>
+                                    <p style="margin: 0; color: #7f8c8d; font-size: 14px;" data-translate="totalElections">Total Elections</p>
+                                    <h2 style="margin: 10px 0 0 0; font-size: 32px; color: #2c3e50;" id="statTotalElections">0</h2>
+                                </div>
+                                <div style="width: 50px; height: 50px; background: #e8f4f8; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px;">
+                                    🗳️
+                                </div>
+                            </div>
+                            <p style="margin: 15px 0 0 0; color: #27ae60; font-size: 13px; font-weight: 600;">
+                                <span id="statActiveElections">0</span> <span data-translate="active">Active</span>
+                            </p>
+                        </div>
+
+                        <div class="stat-card">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                <div>
+                                    <p style="margin: 0; color: #7f8c8d; font-size: 14px;" data-translate="totalVotes">Total Votes</p>
+                                    <h2 style="margin: 10px 0 0 0; font-size: 32px; color: #2c3e50;" id="statTotalVotes">0</h2>
+                                </div>
+                                <div style="width: 50px; height: 50px; background: #fff4e6; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px;">
+                                    ✅
+                                </div>
+                            </div>
+                            <p style="margin: 15px 0 0 0; color: #FF9933; font-size: 13px; font-weight: 600;">
+                                Across all elections
+                            </p>
+                        </div>
+
+                        <div class="stat-card">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                <div>
+                                    <p style="margin: 0; color: #7f8c8d; font-size: 14px;" data-translate="totalVoters">Registered Voters</p>
+                                    <h2 style="margin: 10px 0 0 0; font-size: 32px; color: #2c3e50;" id="statTotalVoters">0</h2>
+                                </div>
+                                <div style="width: 50px; height: 50px; background: #f0f7ff; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px;">
+                                    👥
+                                </div>
+                            </div>
+                            <p style="margin: 15px 0 0 0; color: #3498db; font-size: 13px; font-weight: 600;">
+                                In your <span data-translate="state">state</span>
+                            </p>
+                        </div>
+
+                        <div class="stat-card">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                <div>
+                                    <p style="margin: 0; color: #7f8c8d; font-size: 14px;">Blockchain Blocks</p>
+                                    <h2 style="margin: 10px 0 0 0; font-size: 32px; color: #2c3e50;" id="statBlockchainBlocks">0</h2>
+                                </div>
+                                <div style="width: 50px; height: 50px; background: #f4f0ff; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px;">
+                                    ⛓️
+                                </div>
+                            </div>
+                            <p style="margin: 15px 0 0 0; color: #9b59b6; font-size: 13px; font-weight: 600;">
+                                <span id="statChainStatus">Verified</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-top: 20px;">
+                        <div class="panel-card">
+                            <h3 style="margin: 0 0 20px 0; font-size: 18px; color: #2c3e50;" data-translate="recentElections">Recent Elections</h3>
+                            <div id="recentElectionsList"></div>
+                        </div>
+
+                        <div class="panel-card">
+                            <h3 style="margin: 0 0 20px 0; font-size: 18px; color: #2c3e50;" data-translate="quickActions">Quick Actions</h3>
+                            <div style="display: flex; flex-direction: column; gap: 12px;">
+                                <button class="btn btn-primary" onclick="switchView('create')" style="width: 100%; padding: 12px;">
+                                    ➕ <span data-translate="createNewElection">Create New Election</span>
+                                </button>
+                                <button class="btn btn-secondary" onclick="switchView('analytics')" style="width: 100%; padding: 12px;">
+                                    📈 <span data-translate="viewAnalytics">View Analytics</span>
+                                </button>
+                                <button class="btn btn-secondary" onclick="switchView('audit')" style="width: 100%; padding: 12px;">
+                                    📋 <span data-translate="auditLogs">Audit Logs</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Create Election View -->
+                <div id="createView" class="dashboard-view" style="display: none;">
+                    <div class="panel-card">
+                        <h3 style="margin: 0 0 20px 0; font-size: 20px; color: #2c3e50;" data-translate="createNewElection">Create New Election</h3>
+                        <form id="createElectionForm">
+                            <div class="form-group">
+                                <label data-translate="stateForElection">State for Election *</label>
+                                <select id="electionState" required>
+                                    <option value="" data-translate="selectState">-- Select State --</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label data-translate="electionTitle">Election Title *</label>
+                                <input type="text" id="electionTitle" data-translate="electionTitlePlaceholder" placeholder="e.g., Maharashtra General Election 2025" required>
+                            </div>
+                            <div class="form-group">
+                                <label data-translate="description">Description *</label>
+                                <textarea id="electionDescription" data-translate="electionDescriptionPlaceholder" placeholder="Enter election description" rows="4" required></textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label data-translate="startTime">Start Time *</label>
+                                    <input type="datetime-local" id="startTime" required>
+                                </div>
+                                <div class="form-group">
+                                    <label data-translate="endTime">End Time *</label>
+                                    <input type="datetime-local" id="endTime" required>
+                                </div>
+                            </div>
+
+                            <h4 style="margin: 30px 0 15px 0; font-size: 16px; color: #2c3e50;" data-translate="candidates">Candidates</h4>
+                            <div id="candidatesList">
+                                <div class="candidate-row" style="display: grid; grid-template-columns: 1fr 1fr 120px 120px 50px; gap: 12px; align-items: center; margin-bottom: 12px; padding: 12px; background: #f9fafb; border-radius: 8px;">
+                                    <input type="text" class="candidate-name" data-translate="candidateName" placeholder="Candidate Name *" required style="padding: 10px; border: 2px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
+                                    <input type="text" class="candidate-party" data-translate="party" placeholder="Party *" required style="padding: 10px; border: 2px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
+                                    <label style="background: #3b82f6; color: white; padding: 10px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; text-align: center; white-space: nowrap; transition: all 0.3s;">
+                                        📷 <span data-translate="uploadPhoto">Photo</span>
+                                        <input type="file" class="candidate-photo" accept="image/png,image/jpeg,image/jpg" style="display: none;" onchange="previewCandidatePhoto(this)">
+                                    </label>
+                                    <label style="background: #8b5cf6; color: white; padding: 10px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; text-align: center; white-space: nowrap; transition: all 0.3s;">
+                                        🎨 <span data-translate="uploadLogo">Logo</span>
+                                        <input type="file" class="candidate-logo" accept="image/png,image/jpeg,image/jpg" style="display: none;" onchange="previewCandidateLogo(this)">
+                                    </label>
+                                    <button type="button" class="remove-candidate-btn" onclick="removeFirstCandidate(this)" style="background: #e5e7eb; color: #9ca3af; padding: 10px; border: none; border-radius: 6px; cursor: not-allowed; font-size: 16px;" disabled title="First candidate cannot be removed">✕</button>
+                                </div>
+                            </div>
+                            <button type="button" id="addCandidateBtn" class="btn btn-secondary" style="margin-top: 15px;">
+                                <span data-translate="addCandidate">+ Add Another Candidate</span>
+                            </button>
+                            
+                            <div style="display: flex; gap: 12px; margin-top: 30px;">
+                                <button type="submit" class="btn btn-primary" style="flex: 1; padding: 14px; font-size: 16px;">
+                                    <span data-translate="createElection">Create Election</span>
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="document.getElementById('createElectionForm').reset()" style="padding: 14px 30px;">
+                                    <span data-translate="clearForm">Clear Form</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Import Voters View -->
+                <div id="importView" class="dashboard-view" style="display: none;">
+                    <div class="panel-card">
+                        <h3 style="margin: 0 0 10px 0; font-size: 20px; color: #2c3e50;">📤 <span data-translate="importVoterData">Import Voter Data</span></h3>
+                        <p style="color: #7f8c8d; margin-bottom: 25px;" data-translate="importVoterDescription">Upload Excel or CSV file with state-wise voter data (Aadhaar number, name, and state)</p>
+                        
+                        <!-- Sample Template Download -->
+                        <div style="background: linear-gradient(135deg, rgba(255, 153, 51, 0.1), rgba(19, 136, 8, 0.1)); padding: 20px; border-radius: 12px; margin-bottom: 25px; border-left: 4px solid #FF9933;">
+                            <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                                <span style="font-size: 36px;">📋</span>
+                                <div style="flex: 1;">
+                                    <h4 style="margin: 0 0 5px 0; color: #2c3e50;" data-translate="needTemplate">Need a template?</h4>
+                                    <p style="margin: 0; color: #7f8c8d; font-size: 14px;" data-translate="downloadSampleTemplate">Download our sample Excel template with the correct format</p>
+                                </div>
+                                <button id="downloadTemplateBtn" class="btn btn-secondary" style="white-space: nowrap;">
+                                    ⬇️ <span data-translate="downloadTemplate">Download Template</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- File Upload Section -->
+                        <div style="background: white; border: 2px dashed #d1d5db; border-radius: 12px; padding: 40px; text-align: center; transition: all 0.3s;" id="uploadDropZone">
+                            <div style="font-size: 48px; margin-bottom: 15px;">📁</div>
+                            <h4 style="margin: 0 0 10px 0; color: #2c3e50;" data-translate="selectOrDropFile">Select or Drop File Here</h4>
+                            <p style="color: #7f8c8d; margin-bottom: 20px;" data-translate="supportedFormats">Supported formats: .xlsx, .xls, .csv (Max 10MB)</p>
+                            
+                            <input type="file" id="voterFileInput" accept=".csv,.xlsx,.xls" style="display: none;">
+                            <button id="selectFileBtn" class="btn btn-secondary">
+                                📂 <span data-translate="chooseFile">Choose File</span>
+                            </button>
+                            
+                            <div id="selectedFileName" style="margin-top: 20px; color: #FF9933; font-weight: 500; display: none;">
+                                <span id="fileNameText"></span>
+                                <button id="clearFileBtn" style="margin-left: 10px; color: #e74c3c; background: none; border: none; cursor: pointer; font-size: 18px;">❌</button>
+                            </div>
+                        </div>
+
+                        <!-- Upload Button -->
+                        <button id="uploadFileBtn" class="btn btn-primary" style="width: 100%; padding: 16px; font-size: 16px; margin-top: 25px; display: none;">
+                            🚀 <span data-translate="importVoters">Import Voters</span>
+                        </button>
+
+                        <!-- Import Statistics -->
+                        <div id="importStats" style="display: none; margin-top: 25px; padding: 20px; background: #f8f9fa; border-radius: 12px;">
+                            <h4 style="margin: 0 0 15px 0; color: #2c3e50;" data-translate="importResults">Import Results</h4>
+                            <div id="importStatsContent"></div>
+                        </div>
+
+                        <!-- Instructions -->
+                        <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; margin-top: 25px;">
+                            <h4 style="margin: 0 0 15px 0; color: #2c3e50; font-size: 16px;">📚 File Format Requirements</h4>
+                            <div style="display: grid; gap: 12px; color: #5a6c7d; font-size: 14px;">
+                                <div style="display: flex; gap: 10px;">
+                                    <span>✓</span>
+                                    <div>
+                                        <strong>Required Columns:</strong> state, aadhaar_number, name
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 10px;">
+                                    <span>✓</span>
+                                    <div>
+                                        <strong>Aadhaar Number:</strong> Must be 12 digits (e.g., 123456789012)
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 10px;">
+                                    <span>✓</span>
+                                    <div>
+                                        <strong>State:</strong> Valid Indian state/UT name (e.g., Maharashtra, Delhi)
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 10px;">
+                                    <span>✓</span>
+                                    <div>
+                                        <strong>Duplicate Handling:</strong> Existing voters will be updated, new voters will be inserted
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Elections View -->
+                <div id="electionsView" class="dashboard-view" style="display: none;">
+                    <div class="panel-card">
+                        <h3 style="margin: 0 0 20px 0; font-size: 20px; color: #2c3e50;" data-translate="allElections">All Elections</h3>
+                        <div id="electionsList"></div>
+                    </div>
+                </div>
+
+                <!-- Analytics View -->
+                <div id="analyticsView" class="dashboard-view" style="display: none;">
+                    <div class="panel-card">
+                        <h3 style="margin: 0 0 20px 0; font-size: 20px; color: #2c3e50;">📊 <span data-translate="voterTurnoutAnalytics">Voter Turnout Analytics</span></h3>
+                        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <canvas id="turnoutChart" style="max-height: 400px;"></canvas>
+                        </div>
+                        <div id="analyticsDetails" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;"></div>
+                    </div>
+                </div>
+
+                <!-- Audit Logs View -->
+                <div id="auditView" class="dashboard-view" style="display: none;">
+                    <div class="panel-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h3 style="margin: 0; font-size: 20px; color: #2c3e50;">📋 <span data-translate="adminActivityAuditLogs">Admin Activity Audit Logs</span></h3>
+                            <button id="refreshAuditBtn" class="btn btn-secondary">
+                                🔄 <span data-translate="refresh">Refresh</span>
+                            </button>
+                        </div>
+                        <p style="color: #7f8c8d; margin-bottom: 20px;" data-translate="auditLogDescription">All administrative actions are logged for transparency and security</p>
+                        <div id="auditLogsList" style="max-height: 600px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+
+                <!-- Blockchain View -->
+                <div id="blockchainView" class="dashboard-view" style="display: none;">
+                    <div class="panel-card">
+                        <h3 style="margin: 0 0 20px 0; font-size: 20px; color: #2c3e50;">⛓️ Blockchain Audit Trail</h3>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 20px;">
+                            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center;">
+                                <p style="margin: 0; color: #7f8c8d; font-size: 14px;">Chain Status</p>
+                                <h3 style="margin: 10px 0 0 0; color: #2c3e50;" id="chainStatus">Loading...</h3>
+                            </div>
+                            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center;">
+                                <p style="margin: 0; color: #7f8c8d; font-size: 14px;">Total Blocks</p>
+                                <h3 style="margin: 10px 0 0 0; color: #2c3e50;" id="totalBlocks">0</h3>
+                            </div>
+                            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center;">
+                                <p style="margin: 0; color: #7f8c8d; font-size: 14px;">Chain Integrity</p>
+                                <h3 style="margin: 10px 0 0 0; color: #27ae60;" id="chainValidity">Verifying...</h3>
+                            </div>
+                        </div>
+                        <button id="verifyChainBtn" class="btn btn-primary" style="margin-bottom: 20px;">
+                            Verify Blockchain Integrity
+                        </button>
+                        <div id="blockchainData"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Box -->
+    <div id="messageBox" class="message-box"></div>
+
+    <script src="/static/admin.js"></script>
+    <script>
+        // Notification functions (defined here to avoid errors)
+        function toggleNotifications() {
+            const dropdown = document.getElementById('notificationDropdown');
+            if (dropdown) {
+                dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+
+        function clearNotifications() {
+            if (typeof window.clearNotifications === 'undefined') {
+                // Call the admin.js function if available
+                const list = document.getElementById('notificationList');
+                const badge = document.getElementById('notificationBadge');
+                if (list) list.innerHTML = '<p style="text-align: center; color: #7f8c8d; padding: 20px;">No new notifications</p>';
+                if (badge) badge.style.display = 'none';
+                const dropdown = document.getElementById('notificationDropdown');
+                if (dropdown) dropdown.style.display = 'none';
+            }
+        }
+
+        // Navigation handling for new dashboard layout
+        function switchView(viewName) {
+            // Update navigation
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+                if (item.dataset.view === viewName) {
+                    item.classList.add('active');
+                }
+            });
+
+            // Hide all views
+            document.querySelectorAll('.dashboard-view').forEach(view => {
+                view.style.display = 'none';
+            });
+
+            // Show selected view
+            const viewMap = {
+                'overview': 'overviewView',
+                'create': 'createView',
+                'elections': 'electionsView',
+                'import': 'importView',
+                'analytics': 'analyticsView',
+                'audit': 'auditView',
+                'blockchain': 'blockchainView'
+            };
+
+            const viewId = viewMap[viewName];
+            if (viewId) {
+                document.getElementById(viewId).style.display = 'block';
+            }
+
+            // Update title
+            const titles = {
+                'overview': 'Dashboard Overview',
+                'create': 'Create New Election',
+                'elections': 'Manage Elections',
+                'import': 'Import Voters',
+                'analytics': 'Analytics & Reports',
+                'audit': 'Audit Logs',
+                'blockchain': 'Blockchain Audit'
+            };
+            document.getElementById('viewTitle').textContent = titles[viewName] || 'Dashboard';
+
+            // Load specific data if needed
+            if (viewName === 'overview') {
+                loadOverviewData();
+            } else if (viewName === 'elections') {
+                if (typeof loadElections === 'function') loadElections();
+            } else if (viewName === 'analytics') {
+                if (typeof loadAnalytics === 'function') loadAnalytics();
+            } else if (viewName === 'audit') {
+                if (typeof loadAuditLogs === 'function') loadAuditLogs();
+            } else if (viewName === 'blockchain') {
+                if (typeof loadBlockchainData === 'function') loadBlockchainData();
+            }
+        }
+
+        // Load overview dashboard data
+        function loadOverviewData() {
+            // This will be called by admin.js when logged in
+            if (typeof loadDashboardStats === 'function') {
+                loadDashboardStats();
+            }
+        }
+
+        // Navigation click handlers
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const view = item.dataset.view;
+                    switchView(view);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

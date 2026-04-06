@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🗳️ Voter Portal - SecureVoteChain</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/dark-mode.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- QR Code Generator -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Translation and Theme Support -->
+    <script src="/static/translations.js"></script>
+    <script src="/static/theme-manager.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        /* Animated Tricolor top banner */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 8px;
+            background: linear-gradient(to right, #FF9933 33.33%, #FFFFFF 33.33%, #FFFFFF 66.66%, #138808 66.66%);
+            z-index: 9999;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            animation: slideDown 0.5s ease;
+        }
+        
+        @keyframes slideDown {
+            from { transform: translateY(-100%); }
+            to { transform: translateY(0); }
+        }
+        
+        .container {
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header style="background: linear-gradient(135deg, #FF9933 0%, #FF6600 100%); color: white; padding: 25px 30px; border-radius: 16px; margin-bottom: 30px; box-shadow: 0 8px 24px rgba(255, 153, 51, 0.25); animation: fadeIn 0.6s ease;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                <div>
+                    <h1 style="margin: 0; font-size: 32px; font-weight: 700;">🗳️ <span data-translate="voterPortal">Voter Portal</span></h1>
+                    <p style="margin: 8px 0 0 0; opacity: 0.95; font-size: 15px;" data-translate="voterSubtitle">✅ Register, Vote, and Verify your participation securely</p>
+                </div>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <!-- Language Selector -->
+                    <select id="languageSelector" onchange="setLanguage(this.value)" style="padding: 8px 30px 8px 12px; border: 2px solid rgba(255,255,255,0.3); border-radius: 8px; background: rgba(255,255,255,0.95); color: #2c3e50; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.3s;">
+                        <option value="en">🌐 English</option>
+                        <option value="hi">हिंदी</option>
+                        <option value="ta">தமிழ்</option>
+                        <option value="te">తెలుగు</option>
+                        <option value="kn">ಕನ್ನಡ</option>
+                        <option value="ml">മലയാളം</option>
+                        <option value="mr">मराठी</option>
+                        <option value="bn">বাংলা</option>
+                        <option value="gu">ગુજરાતી</option>
+                        <option value="pa">ਪੰਜਾਬੀ</option>
+                        <option value="or">ଓଡ଼ିଆ</option>
+                    </select>
+                    <span style="background: rgba(255,255,255,0.25); padding: 10px 20px; border-radius: 25px; font-size: 13px; font-weight: 700; letter-spacing: 0.5px;">PUBLIC ACCESS</span>
+                </div>
+            </div>
+        </header>
+
+        <div id="authSection" class="auth-section">
+            <div class="auth-tabs">
+                <button class="auth-tab-btn active" data-tab="register" data-translate="register">Register</button>
+                <button class="auth-tab-btn" data-tab="login" data-translate="login">Login</button>
+            </div>
+
+            <div id="registerTab" class="auth-tab-content active">
+                <h2 data-translate="voterRegistration">Voter Registration</h2>
+                <form id="registerForm">
+                    <div class="form-group">
+                        <label data-translate="selectYourState">Select Your State *</label>
+                        <select id="voterState" class="form-control" required style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1rem; font-family: 'Poppins', sans-serif;">
+                            <option value="">-- Select State --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label data-translate="aadhaarNumber">Aadhaar Number (12 digits) *</label>
+                        <input type="text" id="aadhaarNumber" data-translate="enterAadhaar" placeholder="Enter Aadhaar number" maxlength="12" required>
+                    </div>
+                    <button type="button" id="requestOtpBtn" class="btn btn-secondary" data-translate="requestOtp">Request OTP</button>
+
+                    <div id="otpSection" style="display: none;">
+                        <div class="form-group">
+                            <label data-translate="enterOtp">Enter OTP</label>
+                            <input type="text" id="otpInput" data-translate="enter6DigitOtp" placeholder="Enter 6-digit OTP" maxlength="6">
+                            <small id="otpDisplay" class="otp-display"></small>
+                        </div>
+                        <button type="submit" class="btn btn-primary" data-translate="completeRegistration">Complete Registration</button>
+                    </div>
+                </form>
+            </div>
+
+            <div id="loginTab" class="auth-tab-content">
+                <h2 data-translate="voterLogin">Voter Login</h2>
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label data-translate="voterId">Voter ID</label>
+                        <input type="text" id="voterId" data-translate="enterVoterId" placeholder="Enter your Voter ID" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" data-translate="login">Login</button>
+                </form>
+            </div>
+        </div>
+
+        <div id="voterDashboard" style="display: none;">
+            <div class="welcome-bar">
+                <h2><span data-translate="welcome">Welcome</span>, <span id="voterName"></span></h2>
+                <button id="logoutBtn" class="btn btn-secondary" data-translate="logout">Logout</button>
+            </div>
+
+            <div class="voter-info-card">
+                <h3>Your Voter Credentials</h3>
+                <p><strong>Name:</strong> <span id="displayVoterName"></span></p>
+                <p><strong>State:</strong> <span id="displayVoterState" style="color: #FF9933; font-weight: 600;"></span></p>
+                <p><strong>Voter ID:</strong> <span id="displayVoterId"></span></p>
+                <p><strong>Voting Token:</strong> <span id="displayVoterToken" class="token-text"></span></p>
+                <small>Keep these credentials safe. You'll need them to vote and verify your vote.</small>
+            </div>
+
+            <div class="dashboard-tabs">
+                <button class="tab-btn active" data-tab="vote">Cast Vote</button>
+                <button class="tab-btn" data-tab="verify">Verify Vote</button>
+            </div>
+
+            <div id="voteTab" class="tab-content active">
+                <h3>Available Elections</h3>
+                <div id="countdownDisplay" style="display: none; background: linear-gradient(135deg, #FF9933, #FF6600); color: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; text-align: center; box-shadow: 0 4px 15px rgba(255, 153, 51, 0.3);">
+                    <h4 style="margin: 0 0 10px 0; font-size: 18px;">⏰ Election Ends In</h4>
+                    <div id="countdownTimer" style="font-size: 36px; font-weight: bold; font-family: 'Courier New', monospace;"></div>
+                    <p id="countdownElectionName" style="margin: 10px 0 0 0; font-size: 14px; opacity: 0.9;"></p>
+                </div>
+                <div id="electionsList"></div>
+            </div>
+
+            <div id="verifyTab" class="tab-content">
+                <h3>Verify Your Vote</h3>
+                <form id="verifyForm">
+                    <div class="form-group">
+                        <label>Transaction Hash</label>
+                        <input type="text" id="transactionHash" placeholder="Enter your transaction hash" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Verify Vote</button>
+                </form>
+                <div id="verificationResult"></div>
+            </div>
+        </div>
+
+        <div id="messageBox" class="message-box"></div>
+        
+        <!-- Digital Receipt Modal -->
+        <div id="receiptModal" class="receipt-modal" style="display: none;">
+            <div class="receipt-content">
+                <button class="close-receipt" onclick="closeReceipt()">✕</button>
+                <div class="receipt-header">
+                    <div class="receipt-icon">🎫</div>
+                    <h2>Vote Receipt</h2>
+                    <p>Your vote has been recorded on the blockchain</p>
+                </div>
+                <div class="receipt-body">
+                    <div class="receipt-qr" id="receiptQR"></div>
+                    <div class="receipt-details">
+                        <div class="receipt-row">
+                            <span class="label">Election:</span>
+                            <span class="value" id="receiptElection"></span>
+                        </div>
+                        <div class="receipt-row">
+                            <span class="label">Candidate:</span>
+                            <span class="value" id="receiptCandidate"></span>
+                        </div>
+                        <div class="receipt-row">
+                            <span class="label">Voter ID:</span>
+                            <span class="value" id="receiptVoterID"></span>
+                        </div>
+                        <div class="receipt-row">
+                            <span class="label">Date & Time:</span>
+                            <span class="value" id="receiptDateTime"></span>
+                        </div>
+                        <div class="receipt-row hash-row">
+                            <span class="label">Transaction Hash:</span>
+                            <span class="value" id="receiptHash"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="receipt-footer">
+                    <button class="btn btn-primary" onclick="downloadReceipt()">📥 Download Receipt</button>
+                    <button class="btn btn-secondary" onclick="copyHash()">📋 Copy Hash</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <style>
+        .receipt-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .receipt-content {
+            background: white;
+            border-radius: 20px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease;
+            position: relative;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .close-receipt {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(231, 76, 60, 0.1);
+            color: #e74c3c;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+        
+        .close-receipt:hover {
+            background: #e74c3c;
+            color: white;
+            transform: rotate(90deg);
+        }
+        
+        .receipt-header {
+            background: linear-gradient(135deg, #FF9933, #FF6600);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+            border-radius: 20px 20px 0 0;
+        }
+        
+        .receipt-icon {
+            font-size: 64px;
+            margin-bottom: 15px;
+            animation: bounce 0.6s ease;
+        }
+        
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+        
+        .receipt-header h2 {
+            margin: 0 0 10px 0;
+            font-size: 32px;
+        }
+        
+        .receipt-header p {
+            margin: 0;
+            opacity: 0.9;
+            font-size: 16px;
+        }
+        
+        .receipt-body {
+            padding: 40px 30px;
+        }
+        
+        .receipt-qr {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, rgba(255, 153, 51, 0.05), rgba(19, 136, 8, 0.05));
+            border-radius: 12px;
+        }
+        
+        .receipt-details {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 12px;
+        }
+        
+        .receipt-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 15px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .receipt-row:last-child {
+            border-bottom: none;
+        }
+        
+        .receipt-row .label {
+            font-weight: 600;
+            color: #000080;
+        }
+        
+        .receipt-row .value {
+            color: #2c3e50;
+            font-weight: 500;
+            text-align: right;
+            max-width: 60%;
+        }
+        
+        .hash-row .value {
+            word-break: break-all;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #FF6600;
+        }
+        
+        .receipt-footer {
+            padding: 30px;
+            display: flex;
+            gap: 15px;
+            border-top: 2px dashed #e0e0e0;
+        }
+        
+        .receipt-footer button {
+            flex: 1;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+    </style>
+
+    <script src="/static/voter.js"></script>
+</body>
+</html>

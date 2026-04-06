@@ -1,5 +1,6 @@
-Rajesh Kumar,123456789012,Maharashtra,rajesh.kumar@example.com
-Priya Sharma,234567890123,Delhi,priya.sharma@example.com
-Amit Patel,345678901234,Gujarat,amit.patel@example.com
-Sunita Reddy,456789012345,Telangana,sunita.reddy@example.com
-Vikram Singh,567890123456,Punjab,vikram.singh@example.com
+Name,Aadhaar,State,Phone,Contact Phone (Optional)
+Rajesh Kumar,123456789012,Maharashtra,+919876543210,+919876543220
+Priya Sharma,234567890123,Delhi,+919876543211,+919876543221
+Amit Patel,345678901234,Gujarat,+919876543212,+919876543222
+Sunita Reddy,456789012345,Telangana,+919876543213,+919876543223
+Vikram Singh,567890123456,Punjab,+919876543214,+919876543224

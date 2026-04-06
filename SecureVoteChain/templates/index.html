@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🇮🇳 SecureVoteChain - Blockchain Voting System</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #FFFFFF;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+        }
+        
+        /* Animated Tricolor top banner */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 8px;
+            background: linear-gradient(to right, #FF9933 33.33%, #FFFFFF 33.33%, #FFFFFF 66.66%, #138808 66.66%);
+            z-index: 9999;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            animation: slideDown 0.5s ease;
+        }
+        
+        @keyframes slideDown {
+            from {
+                transform: translateY(-100%);
+            }
+            to {
+                transform: translateY(0);
+            }
+        }
+        
+        /* Main container */
+        .main-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px 40px;
+            background: linear-gradient(135deg, rgba(255, 153, 51, 0.03) 0%, rgba(255, 255, 255, 1) 50%, rgba(19, 136, 8, 0.03) 100%);
+        }
+        
+        .portal-container {
+            max-width: 1200px;
+            width: 100%;
+            animation: fadeIn 0.6s ease;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .header-section {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+        
+        .header-section h1 {
+            font-size: 52px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #FF9933 0%, #000080 50%, #138808 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 15px;
+            text-shadow: none;
+            animation: gradientShift 8s ease infinite;
+            background-size: 200% 200%;
+        }
+        
+        @keyframes gradientShift {
+            0%, 100% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+        }
+        
+        .header-section p {
+            font-size: 20px;
+            color: #000080;
+            font-weight: 500;
+            opacity: 0.9;
+        }
+        
+        .portals-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 50px;
+            margin-top: 40px;
+            max-width: 1000px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .portal-card {
+            background: #FFFFFF;
+            border-radius: 20px;
+            padding: 50px 40px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            border: 3px solid;
+        }
+        
+        .portal-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            transition: height 0.3s ease;
+        }
+        
+        .portal-card::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.6s ease, height 0.6s ease;
+            opacity: 0;
+        }
+        
+        .portal-card:hover {
+            transform: translateY(-12px) scale(1.02);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+        }
+        
+        .portal-card:hover::before {
+            height: 8px;
+        }
+        
+        .portal-card:hover::after {
+            width: 500px;
+            height: 500px;
+            opacity: 0.05;
+        }
+        
+        .voter-card {
+            border-color: #FF9933;
+        }
+        
+        .voter-card::before {
+            background: linear-gradient(135deg, #FF9933, #FF6600);
+        }
+        
+        .voter-card::after {
+            background: #FF9933;
+        }
+        
+        .verify-card {
+            border-color: #138808;
+        }
+        
+        .verify-card::before {
+            background: linear-gradient(135deg, #138808, #0a5a05);
+        }
+        
+        .verify-card::after {
+            background: #138808;
+        }
+        
+        .portal-icon {
+            font-size: 90px;
+            margin-bottom: 25px;
+            filter: drop-shadow(0 4px 12px rgba(0, 0, 128, 0.15));
+            transition: transform 0.3s ease;
+        }
+        
+        .portal-card:hover .portal-icon {
+            transform: scale(1.1) rotate(5deg);
+        }
+        
+        .portal-card h2 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: #000080;
+        }
+        
+        .voter-card h2 {
+            color: #FF9933;
+        }
+        
+        .verify-card h2 {
+            color: #138808;
+        }
+        
+        .portal-card p {
+            font-size: 16px;
+            color: #555;
+            line-height: 1.7;
+            margin-bottom: 30px;
+            min-height: 50px;
+        }
+        
+        
+        .portal-btn {
+            display: inline-block;
+            padding: 16px 40px;
+            font-size: 17px;
+            font-weight: 600;
+            color: white;
+            text-decoration: none;
+            border-radius: 12px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+        }
+        
+        .portal-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.5s ease, height 0.5s ease;
+            z-index: -1;
+        }
+        
+        .portal-btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+        
+        .voter-card .portal-btn {
+            background: linear-gradient(135deg, #FF9933, #FF6600);
+        }
+        
+        .voter-card .portal-btn:hover {
+            background: linear-gradient(135deg, #FF6600, #FF4500);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(255, 153, 51, 0.4);
+        }
+        
+        .verify-card .portal-btn {
+            background: linear-gradient(135deg, #138808, #0a5a05);
+        }
+        
+        .verify-card .portal-btn:hover {
+            background: linear-gradient(135deg, #0a5a05, #075003);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(19, 136, 8, 0.4);
+        }
+        
+        .footer-info {
+            text-align: center;
+            margin-top: 70px;
+            padding: 40px 30px;
+            background: linear-gradient(135deg, rgba(255, 153, 51, 0.05) 0%, rgba(19, 136, 8, 0.05) 100%);
+            border-radius: 20px;
+            border: 2px solid rgba(0, 0, 128, 0.1);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        }
+        
+        .footer-info h3 {
+            color: #000080;
+            margin-bottom: 25px;
+            font-size: 26px;
+            font-weight: 700;
+        }
+        
+        .feature-tags {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 25px;
+        }
+        
+        .feature-tag {
+            background: #FFFFFF;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #000080;
+            border: 2px solid rgba(0, 0, 128, 0.15);
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        .feature-tag:hover {
+            border-color: #FF9933;
+            color: #FF9933;
+            transform: translateY(-3px);
+            box-shadow: 0 6px 16px rgba(255, 153, 51, 0.2);
+        }
+        
+        @media (max-width: 768px) {
+            .portals-grid {
+                grid-template-columns: 1fr;
+                gap: 30px;
+            }
+            
+            .header-section h1 {
+                font-size: 36px;
+            }
+            
+            .header-section p {
+                font-size: 16px;
+            }
+            
+            .portal-icon {
+                font-size: 70px;
+            }
+            
+            .portal-card {
+                padding: 40px 30px;
+            }
+            
+            .portal-card h2 {
+                font-size: 26px;
+            }
+            
+            .main-wrapper {
+                padding: 40px 15px 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-wrapper">
+        <div class="portal-container">
+            <div class="header-section">
+                <h1>🇮🇳 SecureVoteChain</h1>
+                <p>Cast Your Vote Securely with Blockchain Technology</p>
+            </div>
+        
+        <div class="portals-grid">
+            <!-- Voter Portal Card -->
+            <div class="portal-card voter-card">
+                <div class="portal-icon">🗳️</div>
+                <h2>Cast Your Vote</h2>
+                <p>Register, cast your vote securely, and view election results</p>
+                <a href="/voter" class="portal-btn">Start Voting →</a>
+            </div>
+            
+            <!-- Verification Portal Card -->
+            <div class="portal-card verify-card">
+                <div class="portal-icon">🔍</div>
+                <h2>Verify Your Vote</h2>
+                <p>Check your vote on the blockchain using transaction hash</p>
+                <a href="/verify" class="portal-btn">Verify Vote →</a>
+            </div>
+        </div>
+            
+            <div class="footer-info">
+                <h3>🛡️ Powered by Blockchain Technology</h3>
+                <div class="feature-tags">
+                    <div class="feature-tag">🔒 SHA-256 Encryption</div>
+                    <div class="feature-tag">⛓️ Immutable Records</div>
+                    <div class="feature-tag">🔍 Transparent Audit</div>
+                    <div class="feature-tag">🎭 Voter Anonymity</div>
+                    <div class="feature-tag">📊 Real-time Results</div>
+                    <div class="feature-tag">🇮🇳 36 States Support</div>
+                </div>
+                <div style="margin-top: 30px;">
+                    <a href="/statistics" style="display: inline-block; padding: 15px 35px; background: linear-gradient(135deg, #000080, #4169E1); color: white; text-decoration: none; border-radius: 50px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(0, 0, 128, 0.3); transition: all 0.3s ease;">
+                        📊 View Voting Statistics
+                    </a>
+                </div>
+                <p style="margin-top: 30px; font-size: 13px; color: #666; font-weight: 500;">
+                    Election Administrator? <a href="/admin" style="color: #FF9933; text-decoration: none; font-weight: 700; transition: color 0.3s ease;" onmouseover="this.style.color='#138808'" onmouseout="this.style.color='#FF9933'">Access Admin Portal</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
