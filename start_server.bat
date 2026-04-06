@@ -11,10 +11,10 @@ echo CORS configured for localhost only (NOT 0.0.0.0)
 echo.
 
 cd /d "%~dp0"
-if exist "%~dp0..\.venv\Scripts\python.exe" (
-	"%~dp0..\.venv\Scripts\python.exe" main.py
+if exist "%~dp0.venv\Scripts\python.exe" (
+	"%~dp0.venv\Scripts\python.exe" main.py
 ) else (
-	"%~dp0..\venv\Scripts\python.exe" main.py
+	"%~dp0venv\Scripts\python.exe" main.py
 )
 
 pause
