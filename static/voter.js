@@ -145,17 +145,27 @@ async function loadStates() {
 
 async function requestOtp() {
     const aadhaarNumber = document.getElementById('aadhaarNumber').value;
+    const mobileNumber = document.getElementById('mobileNumber').value;
+    const fullNameReg = document.getElementById('fullNameReg').value;
     
+    if (!fullNameReg) {
+        showMessage('Full name is required', 'error');
+        return;
+    }
     if (aadhaarNumber.length !== 12) {
         showMessage('Aadhaar number must be 12 digits', 'error');
         return;
     }
+    if (!mobileNumber || mobileNumber.length < 10) {
+        showMessage('Valid mobile number is required', 'error');
+        return;
+    }
     
     try {
-        const response = await fetch('/api/voter/request-otp', {
+        const response = await fetch('/api/voter/request-otp-signup', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ aadhaar_number: aadhaarNumber })
+            body: JSON.stringify({ aadhaar_number: aadhaarNumber, phone: mobileNumber, name: fullNameReg })
         });
         
         const data = await response.json();
@@ -179,19 +189,25 @@ async function handleRegister(e) {
     
     const aadhaarNumber = document.getElementById('aadhaarNumber').value;
     const otp = document.getElementById('otpInput').value;
+    const state = document.getElementById('voterState').value;
+    const mobileNumber = document.getElementById('mobileNumber').value;
+    const fullNameReg = document.getElementById('fullNameReg').value;
     
     if (!otp || otp.length !== 6) {
-        showMessage('Please enter the 6-digit OTP sent to your email', 'error');
+        showMessage('Please enter the 6-digit OTP sent to your phone', 'error');
         return;
     }
     
     try {
-        const response = await fetch('/api/voter/verify-otp', {
+        const response = await fetch('/api/voter/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 aadhaar_number: aadhaarNumber,
-                otp: otp
+                otp: otp,
+                state: state,
+                phone: mobileNumber,
+                name: fullNameReg
             })
         });
         
@@ -211,25 +227,32 @@ async function handleRegister(e) {
             localStorage.setItem('voterId', data.voter_id);
             localStorage.setItem('voterState', data.state);
             localStorage.setItem('voterName', data.name);
+            localStorage.setItem('voterSessionToken', data.session_token);
+            voterId = data.voter_id;
+            voterToken = data.voter_token;
+            voterState = data.state;
+            sessionToken = data.session_token;
             
             setTimeout(() => {
-                alert(`Registration Successful!\n\nYour State: ${data.state}\nYour Voter ID: ${data.voter_id}\nYour Name: ${data.name}\n\n✅ You can now login with your Voter ID!`);
+                alert(`Registration Successful!\n\nYour State: ${data.state}\nYour Voter ID: ${data.voter_id}\nYour Name: ${data.name}\n\n✅ You are now logged in!`);
                 
                 // Reset registration form
                 document.getElementById('registerForm').reset();
                 document.getElementById('otpSection').style.display = 'none';
                 
-                // Auto-switch to login tab
-                document.querySelectorAll('.auth-tab-btn').forEach(btn => btn.classList.remove('active'));
-                document.querySelectorAll('.auth-tab-content').forEach(content => content.classList.remove('active'));
-                document.querySelector('[data-tab="login"]').classList.add('active');
-                document.getElementById('loginTab').classList.add('active');
+                // Update UI for dashboard
+                document.getElementById('voterName').textContent = data.name;
+                document.getElementById('displayVoterName').textContent = data.name;
+                document.getElementById('displayVoterState').textContent = data.state;
+                document.getElementById('displayVoterId').textContent = data.voter_id;
+                document.getElementById('displayVoterToken').textContent = data.voter_token;
                 
-                // Pre-fill voter ID in login form
-                document.getElementById('voterId').value = data.voter_id;
-                document.getElementById('voterId').focus();
+                // Switch to dashboard
+                document.getElementById('authSection').style.display = 'none';
+                document.getElementById('voterDashboard').style.display = 'block';
                 
-                showMessage(`Registration complete! Use Voter ID: ${data.voter_id} to login`, 'success');
+                showMessage(`Welcome ${data.name}! You are now logged in.`, 'success');
+                loadElections();
             }, 1000);
         } else {
             showMessage(data.detail || 'OTP verification failed', 'error');
