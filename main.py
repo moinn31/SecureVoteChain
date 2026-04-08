@@ -76,7 +76,7 @@ def check_voter_access(request: Request) -> Dict:
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Landing page."""
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="index.html", context={})
 
 
 @app.get("/admin", response_class=HTMLResponse)
@@ -90,7 +90,7 @@ async def admin_page(request: Request):
             # Voter trying to access admin panel - redirect to voter page
             from fastapi.responses import RedirectResponse
             return RedirectResponse(url="/voter")
-    return templates.TemplateResponse("admin.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="admin.html", context={})
 
 
 @app.get("/voter", response_class=HTMLResponse)
@@ -104,25 +104,25 @@ async def voter_page(request: Request):
             # Admin trying to access voter panel - redirect to admin page
             from fastapi.responses import RedirectResponse
             return RedirectResponse(url="/admin")
-    return templates.TemplateResponse("voter.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="voter.html", context={})
 
 
 @app.get("/verify", response_class=HTMLResponse)
 async def verify_page(request: Request):
     """Public vote verification portal."""
-    return templates.TemplateResponse("verify.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="verify.html", context={})
 
 
 @app.get("/statistics", response_class=HTMLResponse)
 async def statistics_page(request: Request):
     """Public statistics dashboard showing voting participation."""
-    return templates.TemplateResponse("statistics.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="statistics.html", context={})
 
 
 @app.get("/candidate", response_class=HTMLResponse)
 async def candidate_profile_page(request: Request):
     """Candidate profile page with detailed information."""
-    return templates.TemplateResponse("candidate.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="candidate.html", context={})
 
 
 @app.post("/api/admin/login")
@@ -542,13 +542,21 @@ async def import_voters(request: Request, file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="Invalid file format. Use CSV or Excel (.xlsx, .xls)")
         
         # Validate required columns
-        required_columns = ['name', 'aadhaar', 'state', 'email']
+        df.columns = df.columns.str.strip().str.lower()
+        
+        # Map columns to expected names if they differ
+        column_mapping = {
+            'aadhaar_number': 'aadhaar'
+        }
+        df = df.rename(columns=column_mapping)
+        
+        required_columns = ['name', 'aadhaar', 'state', 'phone']
         missing_columns = [col for col in required_columns if col not in df.columns]
         
         if missing_columns:
             raise HTTPException(
                 status_code=400, 
-                detail=f"Missing required columns: {', '.join(missing_columns)}. Required: name, aadhaar, state, email"
+                detail=f"Missing required columns: {', '.join(missing_columns)}. Required: name, aadhaar, state, phone"
             )
         
         # Import voters
@@ -560,7 +568,7 @@ async def import_voters(request: Request, file: UploadFile = File(...)):
                 voter_state = str(row['state']).strip()
                 aadhaar = str(row['aadhaar']).strip()
                 name = str(row['name']).strip()
-                email = str(row['email']).strip().lower()
+                phone = str(row['phone']).strip() if 'phone' in df.columns else None
                 
                 # Validate state admin can only import voters for their state
                 if admin_state != "All States" and voter_state != admin_state:
@@ -578,11 +586,11 @@ async def import_voters(request: Request, file: UploadFile = File(...)):
                     })
                     continue
                 
-                # Validate email format
-                if not email or '@' not in email or '.' not in email.split('@')[1]:
+                # Validate phone format
+                if phone and (len(phone) < 10 or not phone.isdigit()):
                     errors.append({
                         "row": index + 2,
-                        "error": f"Invalid email format: {email}"
+                        "error": f"Invalid phone format: {phone}"
                     })
                     continue
                 
@@ -614,7 +622,7 @@ async def import_voters(request: Request, file: UploadFile = File(...)):
                     "aadhaar": aadhaar,
                     "state": voter_state,
                     "voting_token": voter_token,
-                    "email": email
+                    "phone": phone
                 }
                 
                 db.register_voter(voter_data)
@@ -1268,3 +1276,4 @@ if __name__ == "__main__":
     import uvicorn
     # Run on localhost only (not 0.0.0.0)
     uvicorn.run(app, host="localhost", port=5000, reload=False)
+

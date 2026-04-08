@@ -591,12 +591,12 @@ class SecureSupabaseDatabase:
             # Prepare candidates data
             candidates = election_data.get('candidates', [])
             if isinstance(candidates, list):
-                candidates_json = json.dumps(candidates)
+                candidates_json = candidates
             else:
                 candidates_json = candidates
             
             result = self.client.table('elections').insert({
-                'election_id': election_data['id'],
+                'id': election_data['id'],
                 'title': election_data['title'],
                 'description': election_data.get('description', ''),
                 'state': election_data.get('state', ''),
@@ -604,7 +604,6 @@ class SecureSupabaseDatabase:
                 'start_time': election_data.get('start_time'),
                 'end_time': election_data.get('end_time'),
                 'status': election_data.get('status', 'active'),
-                'created_by': election_data.get('created_by', ''),
                 'created_at': election_data.get('created_at', datetime.now().isoformat())
             }).execute()
             
@@ -621,7 +620,7 @@ class SecureSupabaseDatabase:
     def get_election(self, election_id: str) -> Optional[Dict]:
         """Get single election by ID"""
         try:
-            result = self.client.table('elections').select('*').eq('election_id', election_id).execute()
+            result = self.client.table('elections').select('*').eq('id', election_id).execute()
             if result.data:
                 election = dict(result.data[0])
                 if isinstance(election.get('candidates'), str):
@@ -631,11 +630,11 @@ class SecureSupabaseDatabase:
         except Exception as e:
             print(f"Error getting election: {e}")
             return None
-    
+
     def update_election(self, election_id: str, updates: Dict) -> Dict:
         """Update election"""
         try:
-            result = self.client.table('elections').update(updates).eq('election_id', election_id).execute()
+            result = self.client.table('elections').update(updates).eq('id', election_id).execute()
             return result.data[0] if result.data else {}
         except Exception as e:
             print(f"Error updating election: {e}")
@@ -643,45 +642,53 @@ class SecureSupabaseDatabase:
     
     # ==================== SESSION MANAGEMENT ====================
     
-    def save_session(self, session_token: str, user_id: str, session_type: str, user_data: Dict = None) -> Dict:
+    def save_session(self, session_token: str, *args) -> Dict:
         """Save user session (admin or voter)"""
         try:
+            # Handle both signatures:
+            # Legacy: save_session(token, user_data)
+            # Current: save_session(token, user_id, session_type, user_data)
+            if len(args) == 1 and isinstance(args[0], dict):
+                session_payload = args[0]
+            elif len(args) == 3 and isinstance(args[2], dict):
+                user_id, session_type, user_data = args
+                session_payload = dict(user_data)
+                session_payload["user_id"] = user_id
+                session_payload["type"] = session_type
+            else:
+                session_payload = {}
+                
+            # Use 'token' and 'data' natively for Supabase
             result = self.client.table('sessions').insert({
-                'session_token': session_token,
-                'user_id': user_id,
-                'session_type': session_type,
-                'user_data': json.dumps(user_data or {}),
+                'token': session_token,
+                'data': session_payload,
                 'created_at': datetime.now().isoformat()
             }).execute()
             
             return result.data[0] if result.data else {}
         except Exception as e:
             print(f"Error saving session: {e}")
-            raise
+            return {}
     
     def get_session(self, session_token: str) -> Optional[Dict]:
         """Get session by token"""
         try:
-            result = self.client.table('sessions').select('*').eq('session_token', session_token).execute()
+            result = self.client.table('sessions').select('*').eq('token', session_token).execute()
             if result.data:
                 session = dict(result.data[0])
-                if isinstance(session.get('user_data'), str):
-                    session['user_data'] = json.loads(session['user_data'])
-                # Convert to expected format
-                return {
-                    'type': session['session_type'],
-                    'user_id': session['user_id'],
-                    **session.get('user_data', {})
-                }
+                data = session.get('data', {})
+                if isinstance(data, str):
+                    data = json.loads(data)
+                return data
             return None
         except Exception as e:
             print(f"Error getting session: {e}")
             return None
-    
+
     def delete_session(self, session_token: str):
         """Delete session"""
         try:
-            self.client.table('sessions').delete().eq('session_token', session_token).execute()
+            self.client.table('sessions').delete().eq('token', session_token).execute()
         except Exception as e:
             print(f"Error deleting session: {e}")
 
@@ -1175,7 +1182,7 @@ class SecureSupabaseDatabase:
         """
         try:
             print(f"🔍 Looking for election with ID: {election_id}")
-            result = self.client.table('elections').select('*').eq('election_id', election_id).execute()
+            result = self.client.table('elections').select('*').eq('id', election_id).execute()
             
             print(f"📊 Query result: Found {len(result.data) if result.data else 0} elections")
             
@@ -1193,10 +1200,10 @@ class SecureSupabaseDatabase:
             else:
                 print(f"❌ Election not found: {election_id}")
                 # List all elections for debugging
-                all_elections = self.client.table('elections').select('election_id, title').execute()
+                all_elections = self.client.table('elections').select('id, title').execute()
                 print(f"📋 Available elections in database:")
                 for e in all_elections.data:
-                    print(f"   - ID: {e.get('election_id')} | Title: {e.get('title')}")
+                    print(f"   - ID: {e.get('id')} | Title: {e.get('title')}")
                 return None
                 
         except Exception as e:
