@@ -254,6 +254,22 @@ class Database:
         if session_token in sessions:
             del sessions[session_token]
             self.save_json(self.sessions_file, sessions)
+
+    def get_all_sessions(self) -> List[dict]:
+        """Get all stored sessions."""
+        sessions = self.load_json(self.sessions_file) or {}
+        all_sessions = []
+
+        for token, session_data in sessions.items():
+            if isinstance(session_data, dict):
+                session_entry = dict(session_data)
+            else:
+                session_entry = {"data": session_data}
+
+            session_entry.setdefault("token", token)
+            all_sessions.append(session_entry)
+
+        return all_sessions
     
     def add_audit_log(self, log_entry: dict):
         """Add an entry to the audit log."""
@@ -265,16 +281,19 @@ class Database:
         """Compatibility wrapper for Supabase-style API."""
         self.add_audit_log(log_entry)
     
-    def get_audit_logs(self, limit: int = 100, state: Optional[str] = None) -> List[dict]:
+    def get_audit_logs(self, limit: int = 100, offset: int = 0, state: Optional[str] = None) -> List[dict]:
         """Get audit logs, optionally filtered by state."""
         logs = self.load_json(self.audit_logs_file) or []
         
         if state:
-            logs = [log for log in logs if log.get("admin_state") == state]
+            logs = [
+                log for log in logs
+                if log.get("state") == state or log.get("admin_state") == state
+            ]
         
         # Return most recent logs first
         logs.reverse()
-        return logs[:limit]
+        return logs[offset:offset + limit]
     
     def get_all_voters(self) -> List[dict]:
         """Get all voters for analytics."""

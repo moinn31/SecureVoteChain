@@ -1193,10 +1193,24 @@
                 <div id="analyticsView" class="dashboard-view" style="display: none;">
                     <div class="panel-card">
                         <h3 style="margin: 0 0 20px 0; font-size: 20px; color: #2c3e50;">📊 <span data-translate="voterTurnoutAnalytics">Voter Turnout Analytics</span></h3>
+                        <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 20px;">
+                            <label for="analyticsStateFilter" style="font-weight: 600; color: #34495e;">State</label>
+                            <select id="analyticsStateFilter" style="min-width: 220px; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; color: #2c3e50;"></select>
+                            <span style="color: #7f8c8d; font-size: 13px;">Filter turnout analytics by state</span>
+                        </div>
                         <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
                             <canvas id="turnoutChart" style="max-height: 400px;"></canvas>
                         </div>
                         <div id="analyticsDetails" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;"></div>
+                    </div>
+
+                    <div class="panel-card" style="margin-top: 20px;">
+                        <h3 style="margin: 0 0 20px 0; font-size: 20px; color: #2c3e50;">🧭 Participation Funnel</h3>
+                        <p style="color: #7f8c8d; margin-bottom: 20px;">Shows how voters move from registration to vote cast.</p>
+                        <div id="participationFunnelCards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px;"></div>
+                        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <canvas id="participationFunnelChart" style="max-height: 340px;"></canvas>
+                        </div>
                     </div>
                 </div>
 
@@ -1210,7 +1224,49 @@
                             </button>
                         </div>
                         <p style="color: #7f8c8d; margin-bottom: 20px;" data-translate="auditLogDescription">All administrative actions are logged for transparency and security</p>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 18px; align-items: end;">
+                            <div>
+                                <label for="auditSearchInput" style="display: block; margin-bottom: 6px; font-weight: 600; color: #34495e;">Search</label>
+                                <input id="auditSearchInput" type="text" placeholder="Search logs" style="width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px;">
+                            </div>
+                            <div>
+                                <label for="auditActionFilter" style="display: block; margin-bottom: 6px; font-weight: 600; color: #34495e;">Action</label>
+                                <input id="auditActionFilter" type="text" placeholder="e.g. login" style="width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px;">
+                            </div>
+                            <div>
+                                <label for="auditUsernameFilter" style="display: block; margin-bottom: 6px; font-weight: 600; color: #34495e;">User</label>
+                                <input id="auditUsernameFilter" type="text" placeholder="Username" style="width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px;">
+                            </div>
+                            <div>
+                                <label for="auditStateFilter" style="display: block; margin-bottom: 6px; font-weight: 600; color: #34495e;">State</label>
+                                <select id="auditStateFilter" style="width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff;"></select>
+                            </div>
+                            <div>
+                                <label for="auditRoleFilter" style="display: block; margin-bottom: 6px; font-weight: 600; color: #34495e;">Role</label>
+                                <input id="auditRoleFilter" type="text" placeholder="admin / super_admin" style="width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px;">
+                            </div>
+                            <div>
+                                <label for="auditPageSize" style="display: block; margin-bottom: 6px; font-weight: 600; color: #34495e;">Rows</label>
+                                <select id="auditPageSize" style="width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff;">
+                                    <option value="5">5</option>
+                                    <option value="10" selected>10</option>
+                                    <option value="20">20</option>
+                                    <option value="50">50</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                <button id="applyAuditFiltersBtn" class="btn btn-primary">Apply Filters</button>
+                                <button id="resetAuditFiltersBtn" class="btn btn-secondary">Reset</button>
+                            </div>
+                        </div>
                         <div id="auditLogsList" style="max-height: 600px; overflow-y: auto;"></div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 18px; flex-wrap: wrap;">
+                            <div id="auditPaginationInfo" style="color: #7f8c8d; font-size: 14px;"></div>
+                            <div style="display: flex; gap: 10px;">
+                                <button id="auditPrevBtn" class="btn btn-secondary">Previous</button>
+                                <button id="auditNextBtn" class="btn btn-secondary">Next</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

@@ -97,6 +97,107 @@ def normalize_phone_number(phone: Optional[str]) -> Optional[str]:
     return '+91' + cleaned
 
 
+def get_vote_tracking_records() -> List[Dict]:
+    """Get vote tracking records, preferring Supabase when available."""
+    vote_tracking = []
+    try:
+        if hasattr(db, 'client'):
+            page_size = 1000
+            offset = 0
+            while True:
+                result = db.client.table('vote_tracking').select('*').range(offset, offset + page_size - 1).execute()
+                batch = [dict(row) for row in result.data] if result.data else []
+
+                if not batch:
+                    break
+
+                vote_tracking.extend(batch)
+
+                if len(batch) < page_size:
+                    break
+
+                offset += page_size
+    except Exception as e:
+        print(f"⚠️ Error getting vote tracking: {e}")
+
+    if not vote_tracking:
+        all_votes = db.get_all_votes()
+        for vote in all_votes:
+            election_id = vote.get('election_id')
+            voter_identifier = vote.get('voter_token') or vote.get('voter_token_hash')
+            if election_id and voter_identifier:
+                vote_tracking.append({
+                    'election_id': election_id,
+                    'voter_token_hash': voter_identifier
+                })
+
+    return vote_tracking
+
+
+def normalize_audit_log_entry(log: Dict) -> Dict:
+    """Normalize audit log data for the admin UI."""
+    action_type = log.get('action_type') or log.get('action') or 'unknown'
+    action_details = log.get('action_details') or log.get('details') or ''
+
+    return {
+        'id': log.get('id'),
+        'timestamp': log.get('timestamp'),
+        'action_type': action_type,
+        'action': action_type,
+        'action_details': action_details,
+        'details': action_details,
+        'admin_username': log.get('admin_username') or log.get('username') or log.get('user_id') or 'unknown',
+        'admin_state': log.get('admin_state') or log.get('state') or 'N/A',
+        'admin_role': log.get('admin_role') or log.get('role') or 'admin',
+        'ip_address': log.get('ip_address') or 'N/A'
+    }
+
+
+def audit_log_matches_filters(log: Dict, filters: Dict[str, Optional[str]]) -> bool:
+    """Return True when an audit log matches the supplied filters."""
+    search = (filters.get('search') or '').strip().lower()
+    action = (filters.get('action') or '').strip().lower()
+    username = (filters.get('username') or '').strip().lower()
+    state = (filters.get('state') or '').strip().lower()
+    role = (filters.get('role') or '').strip().lower()
+    from_date = filters.get('from_date')
+    to_date = filters.get('to_date')
+
+    log_action = str(log.get('action_type') or log.get('action') or '').lower()
+    log_username = str(log.get('admin_username') or log.get('username') or log.get('user_id') or '').lower()
+    log_state = str(log.get('admin_state') or log.get('state') or '').lower()
+    log_role = str(log.get('admin_role') or log.get('role') or '').lower()
+    log_details = str(log.get('action_details') or log.get('details') or '').lower()
+    log_text = ' '.join([log_action, log_username, log_state, log_role, log_details]).strip()
+
+    if action and action not in log_action:
+        return False
+    if username and username not in log_username:
+        return False
+    if state and state not in log_state:
+        return False
+    if role and role not in log_role:
+        return False
+    if search and search not in log_text:
+        return False
+
+    if from_date or to_date:
+        try:
+            log_timestamp = datetime.fromisoformat(str(log.get('timestamp', '')).replace('Z', '+00:00'))
+            if from_date:
+                start_date = datetime.fromisoformat(from_date)
+                if log_timestamp < start_date:
+                    return False
+            if to_date:
+                end_date = datetime.fromisoformat(to_date)
+                if log_timestamp > end_date:
+                    return False
+        except Exception:
+            pass
+
+    return True
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Landing page."""
@@ -1079,13 +1180,20 @@ async def verify_blockchain():
 
 
 @app.get("/api/analytics/voter-turnout")
-async def get_voter_turnout(request: Request):
+async def get_voter_turnout(request: Request, state: Optional[str] = None):
     """Get voter turnout analytics by state."""
     try:
         session = check_admin_access(request)
         admin_state = session.get("state")
+        selected_state = admin_state
+
+        if admin_state == "All States":
+            if state and state != "All States" and state in INDIAN_STATES:
+                selected_state = state
+            else:
+                selected_state = "All States"
         
-        print(f"📊 Analytics request from admin state: {admin_state}")
+        print(f"📊 Analytics request from admin state: {admin_state}, selected state: {selected_state}")
         
         # Get all voters
         all_voters = db.get_all_voters()
@@ -1122,7 +1230,7 @@ async def get_voter_turnout(request: Request):
         # Calculate statistics
         stats = {}
         
-        if admin_state == "All States":
+        if selected_state == "All States":
             # Super admin sees all states
             print(f"📊 Calculating stats for all states")
             for state in INDIAN_STATES:
@@ -1142,23 +1250,23 @@ async def get_voter_turnout(request: Request):
                 }
                 print(f"📊 {state}: {voted_count}/{total_voters} voters ({stats[state]['turnout_percentage']}%)")
         else:
-            # State admin sees only their state
-            print(f"📊 Calculating stats for {admin_state}")
-            state_voters = [v for v in all_voters if v.get("state") == admin_state]
+            # State admin sees only their state, or super admin filtered to one state
+            print(f"📊 Calculating stats for {selected_state}")
+            state_voters = [v for v in all_voters if v.get("state") == selected_state]
             
             # Count UNIQUE voters from this state (not total votes)
-            state_votes = [vt for vt in vote_tracking if elections_map.get(vt.get('election_id')) == admin_state]
+            state_votes = [vt for vt in vote_tracking if elections_map.get(vt.get('election_id')) == selected_state]
             # Get unique voter_token_hash values to count unique voters who voted
             unique_voters_who_voted = set(vt.get('voter_token_hash') for vt in state_votes if vt.get('voter_token_hash'))
             voted_count = len(unique_voters_who_voted)
             total_voters = len(state_voters)
             
-            stats[admin_state] = {
+            stats[selected_state] = {
                 "total_voters": total_voters,
                 "voted_count": voted_count,
                 "turnout_percentage": round((voted_count / total_voters * 100), 2) if total_voters > 0 else 0
             }
-            print(f"📊 {admin_state}: {voted_count}/{total_voters} voters ({stats[admin_state]['turnout_percentage']}%)")
+            print(f"📊 {selected_state}: {voted_count}/{total_voters} voters ({stats[selected_state]['turnout_percentage']}%)")
         
         return {"statistics": stats}
     
@@ -1168,6 +1276,123 @@ async def get_voter_turnout(request: Request):
         traceback.print_exc()
         # Return empty stats instead of failing
         return {"statistics": {}}
+
+
+@app.get("/api/analytics/participation-funnel")
+async def get_participation_funnel(request: Request, state: Optional[str] = None):
+    """Get a participation funnel for registered, contactable, authenticated, and voted voters."""
+    try:
+        session = check_admin_access(request)
+        admin_state = session.get("state")
+        selected_state = admin_state
+
+        if admin_state == "All States" and state and state != "All States" and state in INDIAN_STATES:
+            selected_state = state
+
+        print(f"📊 Participation funnel request from admin state: {admin_state}, selected state: {selected_state}")
+
+        all_voters = db.get_all_voters()
+        all_elections = db.get_all_elections()
+        elections_map = {e.get('id'): e.get('state') for e in all_elections if e.get('id')}
+        vote_tracking = get_vote_tracking_records()
+
+        if selected_state == "All States":
+            relevant_voters = all_voters
+            relevant_vote_tracking = vote_tracking
+            relevant_sessions = db.get_all_sessions() if hasattr(db, 'get_all_sessions') else []
+        else:
+            relevant_voters = [v for v in all_voters if v.get('state') == selected_state]
+            relevant_vote_tracking = [
+                vt for vt in vote_tracking
+                if elections_map.get(vt.get('election_id')) == selected_state
+            ]
+            relevant_sessions = [
+                s for s in (db.get_all_sessions() if hasattr(db, 'get_all_sessions') else [])
+                if s.get('type') == 'voter' and s.get('state') == selected_state
+            ]
+
+        registered_count = len(relevant_voters)
+        contactable_count = len([
+            voter for voter in relevant_voters
+            if voter.get('phone') or voter.get('mobile')
+        ])
+
+        authenticated_ids = set()
+        for voter_session in relevant_sessions:
+            if voter_session.get('type') != 'voter':
+                continue
+            session_id = voter_session.get('user_id') or voter_session.get('token')
+            if session_id:
+                authenticated_ids.add(str(session_id))
+        authenticated_count = len(authenticated_ids)
+
+        voted_ids = set()
+        for vote in relevant_vote_tracking:
+            voter_identifier = vote.get('voter_token_hash') or vote.get('voter_token')
+            if voter_identifier:
+                voted_ids.add(str(voter_identifier))
+        voted_count = len(voted_ids)
+
+        def conversion_rate(current: int, previous: int) -> float:
+            return round((current / previous * 100), 2) if previous > 0 else 0
+
+        def drop_off(previous: int, current: int) -> int:
+            return max(previous - current, 0)
+
+        stages = [
+            {
+                "key": "registered",
+                "label": "Registered Voters",
+                "count": registered_count,
+                "color": "#FF9933",
+                "conversion_rate": 100
+            },
+            {
+                "key": "contactable",
+                "label": "Contactable Voters",
+                "count": contactable_count,
+                "color": "#000080",
+                "conversion_rate": conversion_rate(contactable_count, registered_count)
+            },
+            {
+                "key": "authenticated",
+                "label": "Authenticated Sessions",
+                "count": authenticated_count,
+                "color": "#138808",
+                "conversion_rate": conversion_rate(authenticated_count, contactable_count)
+            },
+            {
+                "key": "voted",
+                "label": "Votes Cast",
+                "count": voted_count,
+                "color": "#7c3aed",
+                "conversion_rate": conversion_rate(voted_count, authenticated_count)
+            }
+        ]
+
+        summary = {
+            "selected_state": selected_state,
+            "registered_count": registered_count,
+            "contactable_count": contactable_count,
+            "authenticated_count": authenticated_count,
+            "voted_count": voted_count,
+            "registration_to_contactable_dropoff": drop_off(registered_count, contactable_count),
+            "contactable_to_authenticated_dropoff": drop_off(contactable_count, authenticated_count),
+            "authenticated_to_voted_dropoff": drop_off(authenticated_count, voted_count),
+            "final_conversion_rate": conversion_rate(voted_count, registered_count)
+        }
+
+        return {
+            "state": selected_state,
+            "summary": summary,
+            "stages": stages
+        }
+
+    except Exception as e:
+        print(f"❌ Error in participation funnel analytics: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"state": state or "All States", "summary": {}, "stages": []}
 
 
 @app.get("/api/analytics/election-stats/{election_id}")
@@ -1227,12 +1452,18 @@ async def get_election_stats(election_id: str, request: Request):
 async def log_admin_action(request: Request, action: dict):
     """Log administrative actions for audit trail."""
     session = check_admin_access(request)
+    action_type = (action or {}).get("type", "unknown")
+    details = (action or {}).get("details", "")
+    client_ip = request.client.host if request.client else "unknown"
     
     log_entry = {
         "username": session.get("username"),
-        "action": f"{action.get('type')}: {action.get('details')}",
-        "details": action.get("details"),
+        "action": f"{action_type}: {details}" if details else str(action_type),
+        "action_type": action_type,
+        "details": details,
         "state": session.get("state"),
+        "role": session.get("role"),
+        "ip_address": client_ip,
         "timestamp": datetime.now().isoformat()
     }
     
@@ -1242,16 +1473,56 @@ async def log_admin_action(request: Request, action: dict):
 
 
 @app.get("/api/audit-logs")
-async def get_audit_logs(request: Request, limit: int = 100):
+async def get_audit_logs(
+    request: Request,
+    page: int = 1,
+    page_size: int = 10,
+    search: Optional[str] = None,
+    action: Optional[str] = None,
+    username: Optional[str] = None,
+    state: Optional[str] = None,
+    role: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None
+):
     """Get audit logs (admin only)."""
     session = check_admin_access(request)
     admin_state = session.get("state")
-    
-    logs = db.get_audit_logs(limit=limit)
+
+    page = max(page, 1)
+    page_size = max(min(page_size, 100), 5)
+
+    raw_logs = db.get_audit_logs(limit=10000, offset=0)
+    normalized_logs = [normalize_audit_log_entry(log) for log in raw_logs]
+
     if admin_state != "All States":
-        logs = [log for log in logs if log.get("state") == admin_state]
-    
-    return {"logs": logs}
+        normalized_logs = [log for log in normalized_logs if log.get("admin_state") == admin_state]
+
+    filter_state = state if state and state != "All States" else None
+    filters = {
+        'search': search,
+        'action': action,
+        'username': username,
+        'state': filter_state,
+        'role': role,
+        'from_date': from_date,
+        'to_date': to_date
+    }
+
+    filtered_logs = [log for log in normalized_logs if audit_log_matches_filters(log, filters)]
+    total = len(filtered_logs)
+    total_pages = max((total + page_size - 1) // page_size, 1) if total else 0
+    start_index = (page - 1) * page_size
+    end_index = start_index + page_size
+    page_logs = filtered_logs[start_index:end_index]
+
+    return {
+        "logs": page_logs,
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": total_pages
+    }
 
 
 @app.get("/api/verify-vote/{transaction_hash}")

@@ -78,6 +78,16 @@ function getCandidateMediaHtml(candidate) {
         </div>`;
 }
 
+function escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 console.log('Admin.js loaded successfully');
 
 // Check if this page should be protected (voter trying to access admin page)
@@ -156,6 +166,8 @@ function restoreAdminSession() {
             loadElections();
             loadVoters();
             loadStatistics();
+            loadAnalyticsStateFilter();
+            loadAuditStateFilter();
         } catch (error) {
             console.error('Error loading initial data:', error);
         }
@@ -316,14 +328,56 @@ document.addEventListener('DOMContentLoaded', function() {
     // Audit log refresh button
     const refreshAuditBtn = document.getElementById('refreshAuditBtn');
     if (refreshAuditBtn) {
-        refreshAuditBtn.addEventListener('click', loadAuditLogs);
+        refreshAuditBtn.addEventListener('click', () => loadAuditLogs(1));
     }
+
+    const applyAuditFiltersBtn = document.getElementById('applyAuditFiltersBtn');
+    if (applyAuditFiltersBtn) {
+        applyAuditFiltersBtn.addEventListener('click', applyAuditFilters);
+    }
+
+    const resetAuditFiltersBtn = document.getElementById('resetAuditFiltersBtn');
+    if (resetAuditFiltersBtn) {
+        resetAuditFiltersBtn.addEventListener('click', resetAuditFilters);
+    }
+
+    const auditSearchInput = document.getElementById('auditSearchInput');
+    if (auditSearchInput) {
+        auditSearchInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                applyAuditFilters();
+            }
+        });
+    }
+
+    const auditPrevBtn = document.getElementById('auditPrevBtn');
+    if (auditPrevBtn) {
+        auditPrevBtn.addEventListener('click', () => gotoAuditPage(-1));
+    }
+
+    const auditNextBtn = document.getElementById('auditNextBtn');
+    if (auditNextBtn) {
+        auditNextBtn.addEventListener('click', () => gotoAuditPage(1));
+    }
+
+    loadAuditStateFilter();
     
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             switchTab(this.dataset.tab);
         });
     });
+
+    const analyticsStateFilterElement = document.getElementById('analyticsStateFilter');
+    if (analyticsStateFilterElement) {
+        analyticsStateFilterElement.addEventListener('change', () => {
+            analyticsStateFilter = analyticsStateFilterElement.value;
+            loadAnalytics();
+        });
+    }
+
+    loadAnalyticsStateFilter();
 
     window.addEventListener('storage', (event) => {
         if (event.key === 'voteUpdatedAt') {
@@ -405,6 +459,8 @@ async function handleLogin(e) {
             
             // Reload states dropdown with correct permissions
             loadStates();
+            loadAnalyticsStateFilter();
+            loadAuditStateFilter();
             
             // Show dashboard
             document.getElementById('loginScreen').style.display = 'none';
@@ -758,10 +814,11 @@ async function loadElections() {
             }
         });
         const data = await response.json();
+        const elections = data.elections || [];
         
         const electionsList = document.getElementById('electionsList');
         
-        if (!data.elections || data.elections.length === 0) {
+        if (elections.length === 0) {
             electionsList.innerHTML = `
                 <div class="info-box">
                     <p><strong>No elections found for ${adminState || 'your jurisdiction'}</strong></p>
@@ -770,27 +827,37 @@ async function loadElections() {
             `;
             return;
         }
-        
-        if (data.elections.length === 0) {
-            electionsList.innerHTML = '<p>No elections created yet.</p>';
-            return;
-        }
-        
+
         electionsList.innerHTML = '';
-        
-        for (const election of data.elections) {
-            // Fetch results with error handling
-            let resultsData = { results: [], total_votes: 0 };
-            try {
-                const resultsResponse = await fetch(`/api/elections/${election.id}/results`);
-                if (resultsResponse.ok) {
-                    resultsData = await resultsResponse.json();
-                } else {
+
+        // Load all election results in parallel to reduce dashboard load time.
+        const resultsEntries = await Promise.all(
+            elections.map(async (election) => {
+                try {
+                    const resultsResponse = await fetch(`/api/elections/${election.id}/results`);
+                    if (resultsResponse.ok) {
+                        return [election.id, await resultsResponse.json()];
+                    }
                     console.warn(`Failed to load results for election ${election.id}`);
+                } catch (error) {
+                    console.error(`Error fetching results for election ${election.id}:`, error);
                 }
-            } catch (error) {
-                console.error(`Error fetching results for election ${election.id}:`, error);
-            }
+                return [election.id, { results: [], total_votes: 0 }];
+            })
+        );
+        const resultsByElectionId = Object.fromEntries(resultsEntries);
+        
+        for (const election of elections) {
+            const resultsData = resultsByElectionId[election.id] || { results: [], total_votes: 0 };
+
+            const sortedResults = [...(resultsData.results || [])].sort((a, b) => {
+                const voteDiff = (b.votes || 0) - (a.votes || 0);
+                if (voteDiff !== 0) return voteDiff;
+                return (a.name || '').localeCompare(b.name || '');
+            });
+            const totalVotes = resultsData.total_votes || 0;
+            const topCandidate = totalVotes > 0 && sortedResults.length > 0 ? sortedResults[0] : null;
+            const topLabel = election.status === 'ended' ? 'Winner' : 'Current Leader';
             
             const card = document.createElement('div');
             card.className = 'election-card';
@@ -816,22 +883,37 @@ async function loadElections() {
                 
                 <h5>Results Summary:</h5>
                 <div class="results-grid">
-                    ${resultsData.results && resultsData.results.length > 0 ? resultsData.results.map(r => {
+                    ${sortedResults.length > 0 ? sortedResults.map((r, index) => {
                         const mediaDisplay = getCandidateMediaHtml(r);
+                        const isLeading = index === 0 && totalVotes > 0;
+                        const leadingBadgeLabel = election.status === 'ended' ? 'WINNER' : 'LEADING';
+                        const percentageValue = totalVotes > 0
+                            ? (((r.votes || 0) / totalVotes) * 100).toFixed(2)
+                            : Number(r.percentage || 0).toFixed(2);
                         
                         return `
                         <div class="result-item">
                             <div style="display: flex; align-items: center; gap: 10px;">
                                 ${mediaDisplay}
                                 <div>
-                                    <strong>${r.name}</strong> (${r.party})
-                                    <br><small>${r.votes} votes</small>
+                                    <strong>${r.name}</strong> (${r.party}) ${isLeading ? `<span style="margin-left: 8px; padding: 3px 10px; border-radius: 999px; background: linear-gradient(135deg, #34d399, #10b981); color: #052e22; font-size: 11px; font-weight: 800; letter-spacing: 0.3px; border: 1px solid rgba(255,255,255,0.35); box-shadow: 0 2px 8px rgba(16,185,129,0.35);">${leadingBadgeLabel}</span>` : ''}
+                                    <br><small>${r.votes} votes (${percentageValue}%)</small>
                                 </div>
                             </div>
                         </div>
                     `}).join('') : '<p style="text-align: center; color: #999;">No votes cast yet</p>'}
                 </div>
-                <p><strong>Total Votes:</strong> ${resultsData.total_votes || 0}</p>
+                <p><strong>Total Votes:</strong> ${totalVotes}</p>
+                ${topCandidate ? `
+                <div style="margin-top: 12px; padding: 14px 16px; border-radius: 12px; border: 1px solid rgba(110, 231, 255, 0.45); background: linear-gradient(135deg, rgba(27, 40, 88, 0.92), rgba(36, 84, 126, 0.9)); box-shadow: 0 10px 24px rgba(8, 15, 45, 0.35);">
+                    <p style="margin: 0; font-size: 13px; font-weight: 700; color: #ffffff; letter-spacing: 0.3px;">🏆 ${topLabel}</p>
+                    <p style="margin: 6px 0 0 0; font-size: 15px; color: #ffffff; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <strong>${topCandidate.name}</strong> (${topCandidate.party})
+                        <span style="padding: 3px 10px; border-radius: 999px; background: linear-gradient(135deg, #34d399, #10b981); color: #052e22; font-size: 11px; font-weight: 800; letter-spacing: 0.3px; border: 1px solid rgba(255,255,255,0.35);">${election.status === 'ended' ? 'WINNER' : 'LEADING'}</span>
+                        <span style="margin-left: 8px; opacity: 0.95; color: #d9f5ff; font-weight: 500;">${topCandidate.votes} votes • ${totalVotes > 0 ? (((topCandidate.votes || 0) / totalVotes) * 100).toFixed(2) : Number(topCandidate.percentage || 0).toFixed(2)}%</span>
+                    </p>
+                </div>
+                ` : ''}
             `;
             electionsList.appendChild(card);
         }
@@ -1070,30 +1152,108 @@ function switchTab(tabName) {
 
 // Analytics Functions
 let turnoutChart = null;
+let analyticsStateFilter = 'All States';
+let participationFunnelChart = null;
+
+function getAnalyticsStateQuery() {
+    const stateFilter = document.getElementById('analyticsStateFilter');
+    analyticsStateFilter = (stateFilter && stateFilter.value) ? stateFilter.value : (analyticsStateFilter || 'All States');
+    return analyticsStateFilter && analyticsStateFilter !== 'All States'
+        ? `?state=${encodeURIComponent(analyticsStateFilter)}`
+        : '';
+}
+
+async function loadAnalyticsStateFilter() {
+    const stateFilter = document.getElementById('analyticsStateFilter');
+    if (!stateFilter) return;
+
+    try {
+        const response = await fetch('/api/states');
+        const data = await response.json();
+        const states = Array.isArray(data.states) ? data.states : [];
+
+        stateFilter.innerHTML = '<option value="All States">All States</option>';
+        states.forEach(state => {
+            const option = document.createElement('option');
+            option.value = state;
+            option.textContent = state;
+            stateFilter.appendChild(option);
+        });
+
+        if (adminState && adminState !== 'All States') {
+            analyticsStateFilter = adminState;
+            stateFilter.value = adminState;
+            stateFilter.disabled = true;
+        } else {
+            stateFilter.disabled = false;
+            stateFilter.value = analyticsStateFilter || 'All States';
+        }
+    } catch (error) {
+        console.error('Error loading analytics states:', error);
+        stateFilter.innerHTML = '<option value="All States">All States</option>';
+        stateFilter.value = analyticsStateFilter || 'All States';
+    }
+}
 
 async function loadAnalytics() {
     try {
-        const response = await fetch('/api/analytics/voter-turnout', {
+        const stateQuery = getAnalyticsStateQuery();
+        const response = await fetch(`/api/analytics/voter-turnout${stateQuery}`, {
             headers: { 'Authorization': `Bearer ${sessionToken}` }
         });
         
         if (response.ok) {
             const data = await response.json();
-            displayTurnoutAnalytics(data.statistics);
+            displayTurnoutAnalytics((data && data.statistics) || {});
         } else {
             showMessage('Failed to load analytics', 'error');
         }
+
+        await loadParticipationFunnel();
     } catch (error) {
         console.error('Error loading analytics:', error);
         showMessage('Error loading analytics', 'error');
     }
 }
 
+async function loadParticipationFunnel() {
+    try {
+        const stateQuery = getAnalyticsStateQuery();
+        const response = await fetch(`/api/analytics/participation-funnel${stateQuery}`, {
+            headers: { 'Authorization': `Bearer ${sessionToken}` }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            displayParticipationFunnel(data || {});
+        } else {
+            showMessage('Failed to load participation funnel', 'error');
+        }
+    } catch (error) {
+        console.error('Error loading participation funnel:', error);
+        showMessage('Error loading participation funnel', 'error');
+    }
+}
+
 function displayTurnoutAnalytics(statistics) {
-    const states = Object.keys(statistics);
-    const turnoutData = states.map(state => statistics[state].turnout_percentage);
-    const totalVoters = states.map(state => statistics[state].total_voters);
-    const votedCounts = states.map(state => statistics[state].voted_count);
+    const safeStatistics = statistics && typeof statistics === 'object' ? statistics : {};
+    const states = Object.keys(safeStatistics);
+
+    if (states.length === 0) {
+        if (turnoutChart) {
+            turnoutChart.destroy();
+            turnoutChart = null;
+        }
+        const detailsDiv = document.getElementById('analyticsDetails');
+        if (detailsDiv) {
+            detailsDiv.innerHTML = '<p style="text-align: center; color: #999; padding: 30px;">No analytics data available yet.</p>';
+        }
+        return;
+    }
+
+    const turnoutData = states.map(state => safeStatistics[state].turnout_percentage || 0);
+    const totalVoters = states.map(state => safeStatistics[state].total_voters || 0);
+    const votedCounts = states.map(state => safeStatistics[state].voted_count || 0);
     
     // Destroy previous chart if exists
     if (turnoutChart) {
@@ -1164,16 +1324,214 @@ function displayTurnoutAnalytics(statistics) {
     `).join('');
 }
 
+function displayParticipationFunnel(data) {
+    const stages = Array.isArray(data.stages) ? data.stages : [];
+    const summary = data.summary || {};
+
+    const cardsDiv = document.getElementById('participationFunnelCards');
+    const chartCanvas = document.getElementById('participationFunnelChart');
+
+    if (!cardsDiv || !chartCanvas) return;
+
+    if (stages.length === 0) {
+        if (participationFunnelChart) {
+            participationFunnelChart.destroy();
+            participationFunnelChart = null;
+        }
+        cardsDiv.innerHTML = '<p style="text-align: center; color: #999; padding: 30px; grid-column: 1 / -1;">No funnel data available yet.</p>';
+        return;
+    }
+
+    const totalRegistered = Number(summary.registered_count || 0);
+    cardsDiv.innerHTML = stages.map((stage, index) => {
+        const previousCount = index === 0 ? stage.count : (stages[index - 1].count || 0);
+        const dropOff = index === 0 ? 0 : Math.max(previousCount - stage.count, 0);
+        const dropOffRate = index === 0 || previousCount === 0 ? 0 : roundToTwo((dropOff / previousCount) * 100);
+        return `
+            <div style="background: linear-gradient(135deg, #ffffff, #f8fafc); padding: 18px; border-radius: 14px; border: 1px solid rgba(15, 23, 42, 0.08); box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);">
+                <div style="display: flex; justify-content: space-between; align-items: start; gap: 10px; margin-bottom: 12px;">
+                    <div>
+                        <div style="font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;">${escapeHtml(stage.label)}</div>
+                        <div style="font-size: 30px; font-weight: 800; color: ${stage.color || '#333'}; line-height: 1.1; margin-top: 6px;">${stage.count}</div>
+                    </div>
+                    <div style="padding: 6px 10px; border-radius: 999px; background: rgba(0,0,0,0.05); color: #334155; font-size: 12px; font-weight: 700;">
+                        ${Number(stage.conversion_rate || 0).toFixed(2)}%
+                    </div>
+                </div>
+                <div style="font-size: 13px; color: #475569; display: grid; gap: 6px;">
+                    <div>Share of registered: <strong>${totalRegistered > 0 ? roundToTwo((stage.count / totalRegistered) * 100) : 0}%</strong></div>
+                    <div>${index === 0 ? 'Baseline stage' : `Drop-off from previous: <strong>${dropOff}</strong> (${dropOffRate}%)`}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    if (participationFunnelChart) {
+        participationFunnelChart.destroy();
+    }
+
+    participationFunnelChart = new Chart(chartCanvas, {
+        type: 'bar',
+        data: {
+            labels: stages.map(stage => stage.label),
+            datasets: [{
+                label: 'Voter Count',
+                data: stages.map(stage => stage.count),
+                backgroundColor: stages.map(stage => stage.color || '#FF9933'),
+                borderColor: stages.map(stage => stage.color || '#FF9933'),
+                borderWidth: 1,
+                borderRadius: 10,
+                barThickness: 26
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false },
+                title: {
+                    display: true,
+                    text: `Participation Funnel${data.state && data.state !== 'All States' ? ` - ${data.state}` : ''}`,
+                    font: { size: 18, family: 'Poppins' }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const stage = stages[context.dataIndex] || {};
+                            return `${stage.count || 0} voters (${Number(stage.conversion_rate || 0).toFixed(2)}% conversion)`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: {
+                        precision: 0
+                    }
+                },
+                y: {
+                    ticks: {
+                        font: { size: 13, family: 'Poppins' }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function roundToTwo(value) {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 // Audit Log Functions
-async function loadAuditLogs() {
+let auditPagination = {
+    page: 1,
+    pageSize: 10,
+    total: 0,
+    totalPages: 0
+};
+
+async function loadAuditStateFilter() {
+    const stateFilter = document.getElementById('auditStateFilter');
+    if (!stateFilter) return;
+
     try {
-        const response = await fetch('/api/audit-logs?limit=50', {
+        const response = await fetch('/api/states');
+        const data = await response.json();
+        const states = Array.isArray(data.states) ? data.states : [];
+
+        stateFilter.innerHTML = '<option value="All States">All States</option>';
+        states.forEach(state => {
+            const option = document.createElement('option');
+            option.value = state;
+            option.textContent = state;
+            stateFilter.appendChild(option);
+        });
+
+        if (adminState && adminState !== 'All States') {
+            stateFilter.value = adminState;
+            stateFilter.disabled = true;
+        } else {
+            stateFilter.disabled = false;
+        }
+    } catch (error) {
+        console.error('Error loading audit states:', error);
+        stateFilter.innerHTML = '<option value="All States">All States</option>';
+    }
+}
+
+function readAuditFilters() {
+    const search = document.getElementById('auditSearchInput');
+    const action = document.getElementById('auditActionFilter');
+    const username = document.getElementById('auditUsernameFilter');
+    const state = document.getElementById('auditStateFilter');
+    const role = document.getElementById('auditRoleFilter');
+    const pageSize = document.getElementById('auditPageSize');
+
+    return {
+        search: search ? search.value.trim() : '',
+        action: action ? action.value.trim() : '',
+        username: username ? username.value.trim() : '',
+        state: state ? state.value : 'All States',
+        role: role ? role.value.trim() : '',
+        pageSize: pageSize ? parseInt(pageSize.value, 10) || 10 : 10
+    };
+}
+
+function setAuditPaginationInfo() {
+    const info = document.getElementById('auditPaginationInfo');
+    const prevBtn = document.getElementById('auditPrevBtn');
+    const nextBtn = document.getElementById('auditNextBtn');
+
+    if (info) {
+        if (auditPagination.total === 0) {
+            info.textContent = 'No audit logs found';
+        } else {
+            const start = ((auditPagination.page - 1) * auditPagination.pageSize) + 1;
+            const end = Math.min(auditPagination.page * auditPagination.pageSize, auditPagination.total);
+            info.textContent = `Showing ${start}-${end} of ${auditPagination.total} logs`;
+        }
+    }
+
+    if (prevBtn) prevBtn.disabled = auditPagination.page <= 1;
+    if (nextBtn) nextBtn.disabled = auditPagination.page >= auditPagination.totalPages;
+}
+
+function buildAuditQueryParams(pageOverride) {
+    const filters = readAuditFilters();
+    auditPagination.pageSize = filters.pageSize;
+    const page = pageOverride || auditPagination.page || 1;
+
+    const params = new URLSearchParams({
+        page: String(page),
+        page_size: String(filters.pageSize)
+    });
+
+    if (filters.search) params.set('search', filters.search);
+    if (filters.action) params.set('action', filters.action);
+    if (filters.username) params.set('username', filters.username);
+    if (filters.state && filters.state !== 'All States') params.set('state', filters.state);
+    if (filters.role) params.set('role', filters.role);
+
+    return params;
+}
+async function loadAuditLogs(pageOverride) {
+    try {
+        const params = buildAuditQueryParams(pageOverride);
+        const response = await fetch(`/api/audit-logs?${params.toString()}`, {
             headers: { 'Authorization': `Bearer ${sessionToken}` }
         });
         
         if (response.ok) {
             const data = await response.json();
+            auditPagination.page = data.page || 1;
+            auditPagination.pageSize = data.page_size || auditPagination.pageSize || 10;
+            auditPagination.total = data.total || 0;
+            auditPagination.totalPages = data.total_pages || 0;
             displayAuditLogs(data.logs);
+            setAuditPaginationInfo();
         } else {
             showMessage('Failed to load audit logs', 'error');
         }
@@ -1185,44 +1543,89 @@ async function loadAuditLogs() {
 
 function displayAuditLogs(logs) {
     const logsDiv = document.getElementById('auditLogsList');
+    const safeLogs = Array.isArray(logs) ? logs : [];
     
-    if (logs.length === 0) {
+    if (safeLogs.length === 0) {
         logsDiv.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">No audit logs found</p>';
         return;
     }
     
-    logsDiv.innerHTML = logs.map(log => {
-        const date = new Date(log.timestamp);
+    logsDiv.innerHTML = safeLogs.map(log => {
+        const actionType = log.action_type || log.action || 'unknown';
+        const actionDetails = log.action_details || log.details || 'No details';
+        const adminUsername = log.admin_username || log.username || log.user_id || 'unknown';
+        const adminState = log.admin_state || log.state || 'N/A';
+        const adminRole = log.admin_role || log.role || 'admin';
+        const ipAddress = log.ip_address || 'N/A';
+
+        const date = new Date(log.timestamp || Date.now());
         const timeStr = date.toLocaleString();
         
         const actionTypeColors = {
             'election_created': '#138808',
             'election_deleted': '#d32f2f',
             'election_updated': '#FF9933',
+            'create_election': '#138808',
+            'delete_election': '#d32f2f',
             'login': '#000080',
             'logout': '#666'
         };
         
-        const actionColor = actionTypeColors[log.action_type] || '#666';
+        const actionColor = actionTypeColors[actionType] || '#666';
         
         return `
             <div style="background: #f9f9f9; padding: 15px; margin-bottom: 10px; border-radius: 8px; border-left: 4px solid ${actionColor};">
                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
                     <div>
-                        <strong style="color: ${actionColor}; text-transform: uppercase; font-size: 12px;">${log.action_type}</strong>
-                        <p style="margin: 5px 0; color: #333;">${log.action_details || 'No details'}</p>
+                        <strong style="color: ${actionColor}; text-transform: uppercase; font-size: 12px;">${escapeHtml(actionType)}</strong>
+                        <p style="margin: 5px 0; color: #333;">${escapeHtml(actionDetails)}</p>
                     </div>
                     <span style="color: #999; font-size: 12px; white-space: nowrap; margin-left: 15px;">${timeStr}</span>
                 </div>
                 <div style="display: flex; gap: 20px; font-size: 12px; color: #666;">
-                    <span>👤 ${log.admin_username}</span>
-                    <span>📍 ${log.admin_state}</span>
-                    <span>🔒 ${log.admin_role}</span>
-                    <span>🌐 ${log.ip_address}</span>
+                    <span>👤 ${escapeHtml(adminUsername)}</span>
+                    <span>📍 ${escapeHtml(adminState)}</span>
+                    <span>🔒 ${escapeHtml(adminRole)}</span>
+                    <span>🌐 ${escapeHtml(ipAddress)}</span>
                 </div>
             </div>
         `;
     }).join('');
+}
+
+function applyAuditFilters() {
+    auditPagination.page = 1;
+    loadAuditLogs(1);
+}
+
+function resetAuditFilters() {
+    const search = document.getElementById('auditSearchInput');
+    const action = document.getElementById('auditActionFilter');
+    const username = document.getElementById('auditUsernameFilter');
+    const state = document.getElementById('auditStateFilter');
+    const role = document.getElementById('auditRoleFilter');
+    const pageSize = document.getElementById('auditPageSize');
+
+    if (search) search.value = '';
+    if (action) action.value = '';
+    if (username) username.value = '';
+    if (role) role.value = '';
+    if (pageSize) pageSize.value = '10';
+    if (state && !(adminState && adminState !== 'All States')) {
+        state.value = 'All States';
+    }
+
+    auditPagination.page = 1;
+    auditPagination.pageSize = 10;
+    loadAuditStateFilter();
+    loadAuditLogs(1);
+}
+
+function gotoAuditPage(direction) {
+    const nextPage = auditPagination.page + direction;
+    if (nextPage < 1) return;
+    if (auditPagination.totalPages && nextPage > auditPagination.totalPages) return;
+    loadAuditLogs(nextPage);
 }
 
 // Log admin actions
@@ -1327,7 +1730,11 @@ async function loadElectionChart(electionId, electionStatus) {
 }
 
 function displayElectionChart(data, electionStatus) {
-    const candidates = data.candidates;
+    const candidates = [...(data.candidates || [])].sort((a, b) => {
+        const voteDiff = (b.votes || 0) - (a.votes || 0);
+        if (voteDiff !== 0) return voteDiff;
+        return (a.name || '').localeCompare(b.name || '');
+    });
     const totalVotes = data.total_votes;
     
     // Update statistics
@@ -1429,12 +1836,15 @@ function displayElectionChart(data, electionStatus) {
     const detailsDiv = document.getElementById('chartDetails');
     detailsDiv.innerHTML = `
         <h3 style="margin-bottom: 15px; color: #333;">Detailed Results:</h3>
-        ${candidates.map((candidate, index) => `
+        ${candidates.map((candidate, index) => {
+            const isLeading = index === 0 && totalVotes > 0;
+            return `
             <div style="background: #f9f9f9; padding: 15px; margin-bottom: 10px; border-radius: 12px; border-left: 4px solid ${colors[index]}; display: flex; justify-content: space-between; align-items: center;">
                 <div style="display: flex; align-items: center; gap: 10px;">
                     ${getCandidateMediaHtml(candidate)}
                     <div>
                         <strong style="font-size: 16px; color: #333;">${candidate.name}</strong>
+                        ${isLeading ? '<span style="margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: rgba(52, 211, 153, 0.2); color: #0f5132; font-size: 11px; font-weight: 700;">LEADING</span>' : ''}
                         <span style="color: #666; margin-left: 10px;">(${candidate.party})</span>
                     </div>
                 </div>
@@ -1443,7 +1853,8 @@ function displayElectionChart(data, electionStatus) {
                     <div style="font-size: 14px; color: #666;">${candidate.percentage}%</div>
                 </div>
             </div>
-        `).join('')}
+        `;
+        }).join('')}
     `;
 }
 
@@ -1457,53 +1868,155 @@ function showMessage(message, type) {
     }, 5000);
 }
 
+async function getElectionReportData(electionId) {
+    const [electionsResponse, resultsResponse] = await Promise.all([
+        fetch('/api/elections', {
+            headers: { 'Authorization': `Bearer ${sessionToken}` }
+        }),
+        fetch(`/api/elections/${electionId}/results`, {
+            headers: { 'Authorization': `Bearer ${sessionToken}` }
+        })
+    ]);
+
+    if (!electionsResponse.ok) {
+        throw new Error('Unable to fetch elections data for report');
+    }
+    if (!resultsResponse.ok) {
+        throw new Error('Unable to fetch election results for report');
+    }
+
+    const electionsData = await electionsResponse.json();
+    const resultsData = await resultsResponse.json();
+    const election = (electionsData.elections || []).find(e => e.id === electionId);
+
+    if (!election) {
+        throw new Error('Election not found for report generation');
+    }
+
+    const sortedCandidates = [...(resultsData.results || [])].sort((a, b) => {
+        const voteDiff = (b.votes || 0) - (a.votes || 0);
+        if (voteDiff !== 0) return voteDiff;
+        return (a.name || '').localeCompare(b.name || '');
+    });
+
+    const totalVotes = Number(resultsData.total_votes || 0);
+    const generatedAt = new Date().toISOString();
+    const leader = sortedCandidates.length > 0 ? sortedCandidates[0] : null;
+
+    return {
+        generated_at: generatedAt,
+        election: {
+            id: election.id,
+            title: election.title,
+            description: election.description,
+            state: election.state,
+            status: election.status,
+            start_time: election.start_time,
+            end_time: election.end_time
+        },
+        summary: {
+            total_votes: totalVotes,
+            total_candidates: sortedCandidates.length,
+            leading_candidate: leader ? {
+                name: leader.name,
+                party: leader.party,
+                votes: leader.votes,
+                percentage: leader.percentage
+            } : null
+        },
+        candidates: sortedCandidates.map((candidate, index) => ({
+            rank: index + 1,
+            is_leading: index === 0 && totalVotes > 0,
+            name: candidate.name,
+            party: candidate.party,
+            votes: candidate.votes || 0,
+            percentage: Number(candidate.percentage || 0)
+        }))
+    };
+}
+
+function downloadTextFile(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+}
+
+function buildElectionResultsCsv(report) {
+    const header = [
+        'Generated At',
+        'Election ID',
+        'Election Title',
+        'State',
+        'Status',
+        'Start Time',
+        'End Time',
+        'Total Votes',
+        'Rank',
+        'Candidate Name',
+        'Party',
+        'Votes',
+        'Percentage',
+        'Leading'
+    ];
+
+    const rows = report.candidates.map(candidate => [
+        report.generated_at,
+        report.election.id,
+        report.election.title,
+        report.election.state,
+        report.election.status,
+        report.election.start_time,
+        report.election.end_time,
+        report.summary.total_votes,
+        candidate.rank,
+        candidate.name,
+        candidate.party,
+        candidate.votes,
+        candidate.percentage,
+        candidate.is_leading ? 'YES' : 'NO'
+    ]);
+
+    const escapeCell = (value) => {
+        const text = String(value ?? '');
+        if (text.includes(',') || text.includes('"') || text.includes('\n')) {
+            return `"${text.replace(/"/g, '""')}"`;
+        }
+        return text;
+    };
+
+    return [header, ...rows].map(row => row.map(escapeCell).join(',')).join('\n');
+}
+
 // Export Results Function
 async function exportResults(electionId, format) {
     try {
-        const response = await fetch(`/api/elections/${electionId}/export?format=${format}`, {
-            headers: {
-                'Authorization': `Bearer ${sessionToken}`
-            }
-        });
-        
-        if (response.ok) {
-            // Get filename from Content-Disposition header
-            const contentDisposition = response.headers.get('Content-Disposition');
-            let filename = `election_results_${electionId}.${format}`;
-            
-            if (contentDisposition) {
-                const filenameMatch = contentDisposition.match(/filename=([^;]+)/);
-                if (filenameMatch) {
-                    filename = filenameMatch[1].replace(/['"]/g, '');
-                }
-            }
-            
-            // Get the blob data
-            const blob = await response.blob();
-            
-            // Create download link
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            
-            // Cleanup
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-            
-            showMessage(`Results exported successfully as ${format.toUpperCase()}`, 'success');
-            
-            // Log the export action
-            logAdminAction('export_results', `Exported results for election ${electionId} as ${format}`);
+        const report = await getElectionReportData(electionId);
+        const safeTitle = (report.election.title || 'election').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '');
+
+        if (format === 'json') {
+            const content = JSON.stringify(report, null, 2);
+            const filename = `${safeTitle || 'election'}_results_report.json`;
+            downloadTextFile(content, filename, 'application/json;charset=utf-8');
+        } else if (format === 'csv') {
+            const content = buildElectionResultsCsv(report);
+            const filename = `${safeTitle || 'election'}_results_report.csv`;
+            downloadTextFile(content, filename, 'text/csv;charset=utf-8');
         } else {
-            const error = await response.json();
-            showMessage(error.detail || 'Failed to export results', 'error');
+            showMessage('Unsupported export format selected', 'error');
+            return;
         }
+
+        showMessage(`Results exported successfully as ${format.toUpperCase()}`, 'success');
+        logAdminAction('export_results', `Exported ranked results report for election ${electionId} as ${format}`);
     } catch (error) {
         console.error('Export error:', error);
-        showMessage('Error exporting results', 'error');
+        showMessage(error.message || 'Error exporting results', 'error');
     }
 }
 

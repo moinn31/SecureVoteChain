@@ -810,6 +810,42 @@ class SecureSupabaseDatabase:
         except Exception as e:
             print(f"Error deleting session: {e}")
 
+    def get_all_sessions(self) -> List[Dict]:
+        """Get all sessions stored in Supabase."""
+        try:
+            sessions = []
+            page_size = 1000
+            offset = 0
+
+            while True:
+                result = self.client.table('sessions').select('*').range(offset, offset + page_size - 1).execute()
+                batch = [dict(row) for row in result.data] if result.data else []
+
+                if not batch:
+                    break
+
+                for row in batch:
+                    session_data = row.get('data', {})
+                    if isinstance(session_data, str):
+                        try:
+                            session_data = json.loads(session_data)
+                        except Exception:
+                            session_data = {}
+                    if not isinstance(session_data, dict):
+                        session_data = {}
+                    session_data.setdefault('token', row.get('token'))
+                    sessions.append(session_data)
+
+                if len(batch) < page_size:
+                    break
+
+                offset += page_size
+
+            return sessions
+        except Exception as e:
+            print(f"Error getting sessions: {e}")
+            return []
+
     # ============================================================================
     # ADMIN MANAGEMENT METHODS
     # ============================================================================
@@ -1143,33 +1179,37 @@ class SecureSupabaseDatabase:
             print(f"❌ Error getting voter {voter_id}: {e}")
             return None
 
+    def _audit_logs_table(self) -> str:
+        """Return the audit log table name used by this database."""
+        return 'audit_logs'
+
     # ============================================================================
     # AUDIT LOG METHODS
     # ============================================================================
 
     def save_audit_log(self, log_data: Dict):
         """
-        Save audit log to secure_audit_logs table.
+        Save audit log to the audit_logs table.
         
         Args:
             log_data: Dictionary containing log information
         """
         try:
+            action_type = log_data.get('action_type') or log_data.get('action', 'unknown')
+            username = log_data.get('username') or log_data.get('admin_username') or log_data.get('user_id') or 'unknown'
+            details = log_data.get('details') or log_data.get('action_details') or ''
+
             # Prepare log entry with fields that exist in the table
             log_entry = {
-                'action_type': log_data.get('action', 'unknown'),
-                'user_id': log_data.get('username', 'unknown'),
-                'timestamp': log_data.get('timestamp', datetime.now().isoformat()),
+                'username': username,
+                'action': action_type,
+                'details': details,
                 'state': log_data.get('state', 'N/A'),
-                'details': log_data.get('details', '')
+                'timestamp': log_data.get('timestamp', datetime.now().isoformat()),
             }
             
-            # Add optional fields if they exist in schema
-            if 'ip_address' in log_data:
-                log_entry['ip_address'] = log_data.get('ip_address', '')
-            
-            # Try to save to secure_audit_logs table
-            self.client.table('secure_audit_logs').insert(log_entry).execute()
+            # Try to save to the audit log table used by the schema.
+            self.client.table(self._audit_logs_table()).insert(log_entry).execute()
             print(f"✅ Audit log saved: {log_data.get('action', 'unknown')} by {log_data.get('username', 'unknown')}")
             
         except Exception as e:
@@ -1177,10 +1217,11 @@ class SecureSupabaseDatabase:
             # Fallback: Try to create a simple log in a backup way
             try:
                 # Try minimal insert
-                self.client.table('secure_audit_logs').insert({
-                    'action_type': str(log_data.get('action', 'unknown'))[:255],
-                    'user_id': str(log_data.get('username', 'unknown'))[:255],
+                self.client.table(self._audit_logs_table()).insert({
+                    'username': str(username)[:255],
+                    'action': str(action_type)[:255],
                     'state': str(log_data.get('state', 'N/A'))[:100],
+                    'details': str(details)[:500],
                     'timestamp': datetime.now().isoformat()
                 }).execute()
                 print(f"✅ Audit log saved (minimal mode)")
@@ -1189,7 +1230,7 @@ class SecureSupabaseDatabase:
                 print(f"❌ Could not save audit log: {fallback_error} - continuing anyway")
                 pass
 
-    def get_audit_logs(self, limit: int = 100) -> List[Dict]:
+    def get_audit_logs(self, limit: int = 100, offset: int = 0) -> List[Dict]:
         """
         Get recent audit logs.
         
@@ -1200,20 +1241,23 @@ class SecureSupabaseDatabase:
             List of audit log dictionaries
         """
         try:
-            result = self.client.table('secure_audit_logs').select('*').order(
+            result = self.client.table(self._audit_logs_table()).select('*').order(
                 'timestamp', desc=True
-            ).limit(limit).execute()
+            ).range(offset, offset + limit - 1).execute()
             
             logs = []
             if result.data:
                 # Convert to dictionaries and format for frontend
                 for row in result.data:
+                    action_value = row.get('action_type') or row.get('action') or 'unknown'
                     logs.append({
                         'id': row.get('id'),
-                        'action': row.get('action_type', 'unknown'),
-                        'username': row.get('user_id', 'unknown'),
-                        'details': row.get('action_type', ''),
+                        'action': action_value,
+                        'action_type': action_value,
+                        'username': row.get('username') or row.get('user_id') or 'unknown',
+                        'details': row.get('details', ''),
                         'state': row.get('state', 'N/A'),
+                        'ip_address': row.get('ip_address', 'N/A'),
                         'timestamp': row.get('timestamp', '')
                     })
             
