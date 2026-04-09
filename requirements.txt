@@ -24,6 +24,7 @@ postgrest-py>=0.10.0
 python-dotenv>=1.0.0
 bcrypt>=4.1.2
 pyjwt>=2.8.0
+twilio>=9.8.5
 
 # CORS & Middleware
 python-multipart>=0.0.20

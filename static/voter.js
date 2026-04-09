@@ -4,6 +4,96 @@ let voterId = null;
 let voterState = null;
 let votedElections = new Set(); // Track elections where user has voted
 
+function getVotedElectionsStorageKey() {
+    return voterId ? `votedElections_${voterId}` : 'votedElections';
+}
+
+function normalizeImageSrc(value) {
+    if (typeof value !== 'string') return null;
+
+    const src = value.trim();
+    if (!src) return null;
+
+    if (src.startsWith('data:image/')) return src;
+    if (src.startsWith('https://') || src.startsWith('http://')) return src;
+    if (src.startsWith('/') || src.startsWith('./') || src.startsWith('../')) return src;
+
+    return null;
+}
+
+function getInitials(text) {
+    if (!text || typeof text !== 'string') return '?';
+
+    const cleaned = text.trim().replace(/\s+/g, ' ');
+    if (!cleaned) return '?';
+
+    const words = cleaned.split(' ');
+    const initials = words.slice(0, 2).map(word => word[0]).join('').toUpperCase();
+    return initials || '?';
+}
+
+function createFallbackImage(label, background, foreground, shape = 'circle') {
+    const initials = getInitials(label);
+    const radius = shape === 'circle' ? '50%' : '16%';
+    const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">
+            <defs>
+                <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="${background}" />
+                    <stop offset="100%" stop-color="#ffffff" stop-opacity="0.14" />
+                </linearGradient>
+            </defs>
+            <rect width="160" height="160" rx="${radius}" fill="url(#g)" />
+            <circle cx="80" cy="80" r="64" fill="rgba(255,255,255,0.18)" />
+            <text x="80" y="96" text-anchor="middle" font-family="Arial, sans-serif" font-size="54" font-weight="700" fill="${foreground}">${initials}</text>
+        </svg>`;
+
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function loadVotedElectionsFromStorage() {
+    try {
+        const stored = localStorage.getItem(getVotedElectionsStorageKey());
+        const parsed = stored ? JSON.parse(stored) : [];
+        votedElections = new Set(Array.isArray(parsed) ? parsed : []);
+    } catch (error) {
+        votedElections = new Set();
+    }
+}
+
+function saveVotedElectionsToStorage() {
+    try {
+        localStorage.setItem(getVotedElectionsStorageKey(), JSON.stringify(Array.from(votedElections)));
+    } catch (error) {
+        console.warn('Could not persist voted elections:', error);
+    }
+}
+
+function markElectionAsVotedInUI(electionId) {
+    const card = document.querySelector(`.election-card[data-election-id="${electionId}"]`);
+    if (!card) return;
+
+    card.classList.add('voted');
+
+    const statusBadge = card.querySelector('.status-badge');
+    if (statusBadge) {
+        statusBadge.textContent = "✓ You've Voted";
+        statusBadge.className = 'status-badge completed';
+    }
+
+    card.querySelectorAll('input[type="radio"]').forEach(input => {
+        input.disabled = true;
+    });
+
+    const voteButton = card.querySelector('button[onclick^="castVote"]');
+    if (voteButton) {
+        voteButton.disabled = true;
+        voteButton.textContent = '🔒 Already Voted';
+        voteButton.style.opacity = '0.75';
+        voteButton.style.cursor = 'not-allowed';
+    }
+}
+
 // Check if this page should be protected (admin trying to access voter page)
 // DISABLED FOR DEVELOPMENT MODE
 function checkPageAccess() {
@@ -42,6 +132,7 @@ function restoreSession() {
         sessionToken = storedSessionToken;
         voterId = storedVoterId;
         voterState = storedVoterState;
+        loadVotedElectionsFromStorage();
         
         // Restore UI state with null checks
         const voterNameEl = document.getElementById('voterName');
@@ -220,6 +311,7 @@ async function handleRegister(e) {
             voterToken = data.voter_token;
             voterState = data.state;
             sessionToken = data.session_token;
+            loadVotedElectionsFromStorage();
             
             // Save to localStorage for session persistence
             localStorage.setItem('voterToken', data.voter_token);
@@ -288,6 +380,7 @@ async function handleLogin(e) {
             localStorage.setItem('voterId', data.voter_id);
             localStorage.setItem('voterState', data.state);
             localStorage.setItem('voterName', data.name);
+            loadVotedElectionsFromStorage();
             
             document.getElementById('voterName').textContent = data.name;
             document.getElementById('displayVoterName').textContent = data.name;
@@ -314,6 +407,7 @@ function handleLogout() {
     voterToken = null;
     voterState = null;
     votedElections.clear(); // Clear voted elections tracking
+    const votedElectionsKey = getVotedElectionsStorageKey();
     
     // Clear localStorage
     localStorage.removeItem('voterToken');
@@ -321,6 +415,7 @@ function handleLogout() {
     localStorage.removeItem('voterId');
     localStorage.removeItem('voterState');
     localStorage.removeItem('voterName');
+    localStorage.removeItem(votedElectionsKey);
     
     document.getElementById('authSection').style.display = 'block';
     document.getElementById('voterDashboard').style.display = 'none';
@@ -362,6 +457,7 @@ async function loadElections() {
                 
                 const card = document.createElement('div');
                 card.className = 'election-card';
+                card.dataset.electionId = election.id;
                 
                 if (hasVoted) {
                     // Already voted - show disabled state with results button
@@ -410,21 +506,24 @@ async function loadElections() {
                             ${election.candidates.map(c => {
                                 // Display BOTH candidate photo AND party logo
                                 let candidateImages = '';
+                                const candidatePhoto = normalizeImageSrc(
+                                    c.photo || c.photo_url || c.image || c.candidate_photo
+                                ) || createFallbackImage(c.name || 'Candidate', '#FF9933', '#ffffff', 'circle');
+                                const partyLogo = normalizeImageSrc(
+                                    c.logo || c.logo_url || c.party_logo || c.symbol
+                                ) || createFallbackImage(c.party || 'Party', '#0f6b4f', '#ffffff', 'rounded');
                                 
                                 // Show candidate photo if available
-                                if (c.photo && c.photo.startsWith('data:image')) {
-                                    candidateImages += `<img src="${c.photo}" alt="${c.name}" title="${c.name}" style="width: 70px; height: 70px; object-fit: cover; border-radius: 50%; border: 3px solid #FF9933; margin-right: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">`;
+                                if (candidatePhoto) {
+                                    candidateImages += `<img src="${candidatePhoto}" alt="${c.name}" title="${c.name}" style="width: 70px; height: 70px; object-fit: cover; border-radius: 50%; border: 3px solid #FF9933; margin-right: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">`;
                                 } else {
                                     // Default user icon if no photo
                                     candidateImages += `<div style="width: 70px; height: 70px; border-radius: 50%; border: 3px solid #ddd; margin-right: 12px; display: flex; align-items: center; justify-content: center; background: #f0f0f0; font-size: 36px;">👤</div>`;
                                 }
                                 
                                 // Show party logo if available
-                                if (c.logo && c.logo.startsWith('data:image')) {
-                                    candidateImages += `<img src="${c.logo}" alt="${c.party}" title="${c.party} Logo" style="width: 70px; height: 70px; object-fit: contain; border-radius: 8px; border: 2px solid #ddd; margin-right: 12px; padding: 6px; background: white; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">`;
-                                } else if (c.symbol && c.symbol.startsWith('data:image')) {
-                                    // Show symbol as fallback
-                                    candidateImages += `<img src="${c.symbol}" alt="${c.party}" title="Party Symbol" style="width: 70px; height: 70px; object-fit: contain; border-radius: 8px; border: 2px solid #ddd; margin-right: 12px; padding: 6px; background: white;">`;
+                                if (partyLogo) {
+                                    candidateImages += `<img src="${partyLogo}" alt="${c.party}" title="${c.party} Logo" style="width: 70px; height: 70px; object-fit: contain; border-radius: 8px; border: 2px solid #ddd; margin-right: 12px; padding: 6px; background: white; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">`;
                                 } else {
                                     // Default party icon if no logo
                                     candidateImages += `<div style="width: 70px; height: 70px; border-radius: 8px; border: 2px solid #ddd; margin-right: 12px; display: flex; align-items: center; justify-content: center; background: white; font-size: 36px;">🏛️</div>`;
@@ -545,6 +644,7 @@ async function checkIfVoted(electionId) {
             const data = await response.json();
             if (data.has_voted) {
                 votedElections.add(electionId);
+                saveVotedElectionsToStorage();
                 return true;
             }
         }
@@ -602,6 +702,9 @@ async function castVote(electionId) {
         if (response.ok) {
             // Mark this election as voted
             votedElections.add(electionId);
+            saveVotedElectionsToStorage();
+            markElectionAsVotedInUI(electionId);
+            localStorage.setItem('voteUpdatedAt', String(Date.now()));
             
             showMessage('✓ Vote cast successfully and recorded on blockchain!', 'success');
             
@@ -629,6 +732,9 @@ async function castVote(electionId) {
             if (data.detail && data.detail.includes('already voted')) {
                 showMessage('⚠️ You have already voted in this election', 'error');
                 votedElections.add(electionId);
+                markElectionAsVotedInUI(electionId);
+                saveVotedElectionsToStorage();
+                localStorage.setItem('voteUpdatedAt', String(Date.now()));
                 loadElections(); // Reload to show updated state
             } else {
                 showMessage(data.detail || 'Failed to cast vote', 'error');
@@ -703,6 +809,12 @@ function switchTab(tabName) {
         loadElections();
     }
 }
+
+window.addEventListener('storage', (event) => {
+    if (event.key === 'voteUpdatedAt') {
+        loadElections();
+    }
+});
 
 // Real-time Election Results Chart for Voters
 let voterElectionChart = null;

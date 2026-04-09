@@ -7,6 +7,7 @@ from typing import Dict, List, Optional
 from datetime import datetime
 from supabase import create_client, Client
 from backend.blockchain import Blockchain
+from backend.encryption import hash_voter_token
 import json
 
 
@@ -123,8 +124,25 @@ class SupabaseDatabase:
     def get_all_voters(self) -> List[Dict]:
         """Get all voters."""
         try:
-            result = self.client.table('voters').select('*').execute()
-            return [dict(row) for row in result.data]
+            voters = []
+            page_size = 1000
+            offset = 0
+
+            while True:
+                result = self.client.table('voters').select('*').range(offset, offset + page_size - 1).execute()
+                batch = [dict(row) for row in result.data] if result.data else []
+
+                if not batch:
+                    break
+
+                voters.extend(batch)
+
+                if len(batch) < page_size:
+                    break
+
+                offset += page_size
+
+            return voters
         except Exception as e:
             print(f"Error getting voters: {e}")
             return []
@@ -225,7 +243,7 @@ class SupabaseDatabase:
             self.client.table('votes').insert({
                 'election_id': election_id,
                 'candidate_id': vote_data['candidate_id'],
-                'voter_token_hash': vote_data['voter_token'],  # Hashed for privacy
+                'voter_token_hash': hash_voter_token(vote_data['voter_token']),
                 'transaction_hash': vote_data['transaction_hash'],
                 'timestamp': vote_data['timestamp']
             }).execute()
@@ -236,9 +254,10 @@ class SupabaseDatabase:
     def has_voted(self, election_id: str, voter_token: str) -> bool:
         """Check if voter has already voted in election."""
         try:
+            voter_token_hash = hash_voter_token(voter_token)
             result = self.client.table('votes').select('id').eq(
                 'election_id', election_id
-            ).eq('voter_token_hash', voter_token).execute()
+            ).eq('voter_token_hash', voter_token_hash).execute()
             return len(result.data) > 0
         except Exception as e:
             print(f"Error checking vote status: {e}")
@@ -247,8 +266,25 @@ class SupabaseDatabase:
     def get_votes_by_election(self, election_id: str) -> List[Dict]:
         """Get all votes for an election."""
         try:
-            result = self.client.table('votes').select('*').eq('election_id', election_id).execute()
-            return [dict(row) for row in result.data]
+            votes = []
+            page_size = 1000
+            offset = 0
+
+            while True:
+                result = self.client.table('votes').select('*').eq('election_id', election_id).range(offset, offset + page_size - 1).execute()
+                batch = [dict(row) for row in result.data] if result.data else []
+
+                if not batch:
+                    break
+
+                votes.extend(batch)
+
+                if len(batch) < page_size:
+                    break
+
+                offset += page_size
+
+            return votes
         except Exception as e:
             print(f"Error getting votes: {e}")
             return []
@@ -256,8 +292,25 @@ class SupabaseDatabase:
     def get_all_votes(self) -> List[Dict]:
         """Get all votes."""
         try:
-            result = self.client.table('votes').select('*').execute()
-            return [dict(row) for row in result.data]
+            votes = []
+            page_size = 1000
+            offset = 0
+
+            while True:
+                result = self.client.table('votes').select('*').range(offset, offset + page_size - 1).execute()
+                batch = [dict(row) for row in result.data] if result.data else []
+
+                if not batch:
+                    break
+
+                votes.extend(batch)
+
+                if len(batch) < page_size:
+                    break
+
+                offset += page_size
+
+            return votes
         except Exception as e:
             print(f"Error getting all votes: {e}")
             return []

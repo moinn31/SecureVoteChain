@@ -2,9 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Candidate Profile - SecureVoteChain</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/responsive.css">
+    <link rel="stylesheet" href="/static/mobile-optimizations.css">
     <link rel="stylesheet" href="/static/dark-mode.css">
     <style>
         * {
@@ -431,9 +435,44 @@
                 document.getElementById('candidateEducation').textContent = candidate.education || 'Not specified';
                 document.getElementById('candidateOccupation').textContent = candidate.occupation || 'Not specified';
                 
-                if (candidate.photo_url) {
-                    document.getElementById('candidatePhoto').src = candidate.photo_url;
+                function normalizeImageSrc(value) {
+                    if (typeof value !== 'string') return null;
+                    const src = value.trim();
+                    if (!src) return null;
+                    if (src.startsWith('data:image/') || src.startsWith('https://') || src.startsWith('http://') || src.startsWith('/') || src.startsWith('./') || src.startsWith('../')) {
+                        return src;
+                    }
+                    return null;
                 }
+
+                function getInitials(text) {
+                    if (!text || typeof text !== 'string') return '?';
+                    const cleaned = text.trim().replace(/\s+/g, ' ');
+                    if (!cleaned) return '?';
+                    const words = cleaned.split(' ');
+                    const initials = words.slice(0, 2).map(word => word[0]).join('').toUpperCase();
+                    return initials || '?';
+                }
+
+                function createFallbackImage(label, background, foreground) {
+                    const initials = getInitials(label);
+                    const svg = `
+                        <svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
+                            <defs>
+                                <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                                    <stop offset="0%" stop-color="${background}" />
+                                    <stop offset="100%" stop-color="#ffffff" stop-opacity="0.18" />
+                                </linearGradient>
+                            </defs>
+                            <rect width="240" height="240" rx="120" fill="url(#g)" />
+                            <circle cx="120" cy="120" r="94" fill="rgba(255,255,255,0.18)" />
+                            <text x="120" y="144" text-anchor="middle" font-family="Arial, sans-serif" font-size="80" font-weight="700" fill="${foreground}">${initials}</text>
+                        </svg>`;
+                    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+                }
+
+                const candidatePhotoSrc = normalizeImageSrc(candidate.photo || candidate.photo_url) || createFallbackImage(candidate.name || 'Candidate', '#FF9933', '#ffffff');
+                document.getElementById('candidatePhoto').src = candidatePhotoSrc;
                 
                 if (candidate.manifesto) {
                     document.getElementById('candidateManifesto').textContent = candidate.manifesto;
@@ -491,5 +530,6 @@
         
         loadCandidateProfile();
     </script>
+    <script src="/static/responsive-utils.js"></script>
 </body>
 </html>

@@ -5,6 +5,79 @@ let notifications = [];
 let lastVoteCount = 0;
 let notificationInterval = null;
 
+function normalizeImageSrc(value) {
+    if (typeof value !== 'string') return null;
+
+    const src = value.trim();
+    if (!src) return null;
+
+    // Allow safe image sources: data URLs, absolute URLs, and relative/static paths.
+    if (src.startsWith('data:image/')) return src;
+    if (src.startsWith('https://') || src.startsWith('http://')) return src;
+    if (src.startsWith('/') || src.startsWith('./') || src.startsWith('../')) return src;
+
+    return null;
+}
+
+function getInitials(text) {
+    if (!text || typeof text !== 'string') return '?';
+
+    const cleaned = text.trim().replace(/\s+/g, ' ');
+    if (!cleaned) return '?';
+
+    const words = cleaned.split(' ');
+    const initials = words.slice(0, 2).map(word => word[0]).join('').toUpperCase();
+    return initials || '?';
+}
+
+function createFallbackImage(label, background, foreground, shape = 'circle') {
+    const initials = getInitials(label);
+    const radius = shape === 'circle' ? '50%' : '16%';
+    const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">
+            <defs>
+                <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="${background}" />
+                    <stop offset="100%" stop-color="#ffffff" stop-opacity="0.14" />
+                </linearGradient>
+            </defs>
+            <rect width="160" height="160" rx="${radius}" fill="url(#g)" />
+            <circle cx="80" cy="80" r="64" fill="rgba(255,255,255,0.18)" />
+            <text x="80" y="96" text-anchor="middle" font-family="Arial, sans-serif" font-size="54" font-weight="700" fill="${foreground}">${initials}</text>
+        </svg>`;
+
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function getCandidateMediaHtml(candidate) {
+    const photoSrc = normalizeImageSrc(
+        candidate.photo || candidate.photo_url || candidate.image || candidate.candidate_photo
+    ) || createFallbackImage(candidate.name || 'Candidate', '#FF9933', '#ffffff', 'circle');
+    const logoSrc = normalizeImageSrc(
+        candidate.logo || candidate.logo_url || candidate.party_logo || candidate.symbol
+    ) || createFallbackImage(candidate.party || 'Party', '#0f6b4f', '#ffffff', 'rounded');
+
+    const photoHtml = photoSrc
+        ? `<img src="${photoSrc}" alt="${candidate.name || 'Candidate'}" title="Candidate Photo" style="width: 42px; height: 42px; object-fit: cover; border-radius: 50%; border: 2px solid #FF9933;">`
+        : `<div style="width: 42px; height: 42px; border-radius: 50%; background: #f3f4f6; border: 2px solid #e5e7eb; display: flex; align-items: center; justify-content: center; font-size: 20px;">👤</div>`;
+
+    const logoHtml = logoSrc
+        ? `<img src="${logoSrc}" alt="${candidate.party || 'Party'}" title="Party Image" style="width: 42px; height: 42px; object-fit: contain; border-radius: 8px; border: 1px solid #ddd; background: #fff; padding: 3px;">`
+        : `<div style="width: 42px; height: 42px; border-radius: 8px; background: #fff; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-size: 20px;">🏛️</div>`;
+
+    return `
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 56px;">
+                ${photoHtml}
+                <span style="font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em;">Photo</span>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 56px;">
+                ${logoHtml}
+                <span style="font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em;">Logo</span>
+            </div>
+        </div>`;
+}
+
 console.log('Admin.js loaded successfully');
 
 // Check if this page should be protected (voter trying to access admin page)
@@ -146,6 +219,55 @@ document.addEventListener('DOMContentLoaded', function() {
         verifyChainBtn.addEventListener('click', verifyBlockchain);
     }
     
+    // ===== MOBILE MENU TOGGLE =====
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    
+    if (sidebarToggle && sidebar && sidebarOverlay) {
+        if (window.innerWidth <= 640) {
+            sidebar.classList.remove('mobile-open');
+            sidebarOverlay.classList.remove('show');
+            document.body.style.overflow = 'auto';
+        }
+
+        // Toggle sidebar on button click
+        sidebarToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sidebar.classList.toggle('mobile-open');
+            sidebarOverlay.classList.toggle('show');
+            document.body.style.overflow = sidebar.classList.contains('mobile-open') ? 'hidden' : 'auto';
+        });
+        
+        // Close sidebar when overlay is clicked
+        sidebarOverlay.addEventListener('click', () => {
+            sidebar.classList.remove('mobile-open');
+            sidebarOverlay.classList.remove('show');
+            document.body.style.overflow = 'auto';
+        });
+        
+        // Close sidebar when nav item is clicked
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => {
+                if (window.innerWidth <= 768) {
+                    sidebar.classList.remove('mobile-open');
+                    sidebarOverlay.classList.remove('show');
+                    document.body.style.overflow = 'auto';
+                }
+            });
+        });
+        
+        // Close sidebar on window resize
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768) {
+                sidebar.classList.remove('mobile-open');
+                sidebarOverlay.classList.remove('show');
+                document.body.style.overflow = 'auto';
+            }
+        });
+    }
+    // ===== END MOBILE MENU TOGGLE =====
+    
     // Import Voters event listeners
     if (selectFileBtn) {
         selectFileBtn.addEventListener('click', () => voterFileInput.click());
@@ -201,6 +323,13 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', function() {
             switchTab(this.dataset.tab);
         });
+    });
+
+    window.addEventListener('storage', (event) => {
+        if (event.key === 'voteUpdatedAt') {
+            loadElections();
+            loadStatistics();
+        }
     });
 });
 
@@ -343,17 +472,68 @@ function addCandidateRow() {
     newRow.innerHTML = `
         <input type="text" class="candidate-name" placeholder="Candidate Name *" required style="padding: 10px; border: 2px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
         <input type="text" class="candidate-party" placeholder="Party *" required style="padding: 10px; border: 2px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
-        <label style="background: #3b82f6; color: white; padding: 10px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; text-align: center; white-space: nowrap; transition: all 0.3s;">
-            📷 Photo
+        <label style="background: #3b82f6; color: white; padding: 10px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; text-align: center; white-space: nowrap; transition: all 0.3s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; overflow: hidden;">
+            <span class="media-label-text">📷 Photo</span>
             <input type="file" class="candidate-photo" accept="image/png,image/jpeg,image/jpg" style="display: none;" onchange="previewCandidatePhoto(this)">
         </label>
-        <label style="background: #8b5cf6; color: white; padding: 10px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; text-align: center; white-space: nowrap; transition: all 0.3s;">
-            🎨 Logo
+        <label style="background: #8b5cf6; color: white; padding: 10px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; text-align: center; white-space: nowrap; transition: all 0.3s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; overflow: hidden;">
+            <span class="media-label-text">🎨 Logo</span>
             <input type="file" class="candidate-logo" accept="image/png,image/jpeg,image/jpg" style="display: none;" onchange="previewCandidateLogo(this)">
         </label>
         <button type="button" class="remove-candidate-btn" onclick="this.parentElement.remove()" style="background: #dc2626; color: white; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; transition: all 0.3s;">✕</button>
     `;
     candidatesList.appendChild(newRow);
+}
+
+function updateMediaPreview(input, labelText, previewSrc, successColor, fileName) {
+    const label = input.parentElement;
+    if (!label) return;
+
+    let textNode = label.querySelector('.media-label-text');
+    if (!textNode) {
+        const translatedNode = label.querySelector('[data-translate]');
+        if (translatedNode) {
+            translatedNode.classList.add('media-label-text');
+            translatedNode.removeAttribute('data-translate');
+            textNode = translatedNode;
+        }
+    }
+
+    // Remove plain text nodes (like "📷" / "Upload Photo") that can overlap after preview updates.
+    for (const node of Array.from(label.childNodes)) {
+        if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+            label.removeChild(node);
+        }
+    }
+
+    if (!textNode) {
+        textNode = document.createElement('span');
+        textNode.className = 'media-label-text';
+        label.insertBefore(textNode, input);
+    }
+
+    let preview = label.querySelector('.media-preview-thumb');
+    if (!preview) {
+        preview = document.createElement('img');
+        preview.className = 'media-preview-thumb';
+        preview.style.width = '24px';
+        preview.style.height = '24px';
+        preview.style.objectFit = 'cover';
+        preview.style.borderRadius = '4px';
+        preview.style.border = '1px solid rgba(255,255,255,0.45)';
+        label.insertBefore(preview, input);
+    }
+
+    label.style.background = successColor;
+    label.style.display = 'inline-flex';
+    label.style.alignItems = 'center';
+    label.style.justifyContent = 'center';
+    label.style.gap = '6px';
+    label.style.overflow = 'hidden';
+
+    textNode.textContent = labelText;
+    preview.src = previewSrc;
+    label.title = fileName;
 }
 
 // Preview candidate photo when selected
@@ -377,10 +557,7 @@ function previewCandidatePhoto(input) {
         
         const reader = new FileReader();
         reader.onload = function(e) {
-            const label = input.parentElement;
-            label.innerHTML = `✅ Photo <input type="file" class="candidate-photo" accept="image/png,image/jpeg,image/jpg" style="display: none;" onchange="previewCandidatePhoto(this)">`;
-            label.style.background = '#10b981';
-            label.title = file.name;
+            updateMediaPreview(input, '✅ Photo', e.target.result, '#10b981', file.name);
         };
         reader.readAsDataURL(file);
     }
@@ -407,10 +584,7 @@ function previewCandidateLogo(input) {
         
         const reader = new FileReader();
         reader.onload = function(e) {
-            const label = input.parentElement;
-            label.innerHTML = `✅ Logo <input type="file" class="candidate-logo" accept="image/png,image/jpeg,image/jpg" style="display: none;" onchange="previewCandidateLogo(this)">`;
-            label.style.background = '#7c3aed';
-            label.title = file.name;
+            updateMediaPreview(input, '✅ Logo', e.target.result, '#7c3aed', file.name);
         };
         reader.readAsDataURL(file);
     }
@@ -555,12 +729,12 @@ async function handleCreateElection(e) {
                 <div class="candidate-row" style="display: grid; grid-template-columns: 1fr 1fr 120px 120px 50px; gap: 12px; align-items: center; margin-bottom: 12px; padding: 12px; background: #f9fafb; border-radius: 8px;">
                     <input type="text" class="candidate-name" placeholder="Candidate Name *" required style="padding: 10px; border: 2px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
                     <input type="text" class="candidate-party" placeholder="Party *" required style="padding: 10px; border: 2px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
-                    <label style="background: #3b82f6; color: white; padding: 10px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; text-align: center; white-space: nowrap; transition: all 0.3s;">
-                        📷 Photo
+                    <label style="background: #3b82f6; color: white; padding: 10px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; text-align: center; white-space: nowrap; transition: all 0.3s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; overflow: hidden;">
+                        <span class="media-label-text">📷 Photo</span>
                         <input type="file" class="candidate-photo" accept="image/png,image/jpeg,image/jpg" style="display: none;" onchange="previewCandidatePhoto(this)">
                     </label>
-                    <label style="background: #8b5cf6; color: white; padding: 10px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; text-align: center; white-space: nowrap; transition: all 0.3s;">
-                        🎨 Logo
+                    <label style="background: #8b5cf6; color: white; padding: 10px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; text-align: center; white-space: nowrap; transition: all 0.3s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; overflow: hidden;">
+                        <span class="media-label-text">🎨 Logo</span>
                         <input type="file" class="candidate-logo" accept="image/png,image/jpeg,image/jpg" style="display: none;" onchange="previewCandidateLogo(this)">
                     </label>
                     <button type="button" class="remove-candidate-btn" onclick="removeFirstCandidate(this)" style="background: #e5e7eb; color: #9ca3af; padding: 10px; border: none; border-radius: 6px; cursor: not-allowed; font-size: 16px;" disabled title="First candidate cannot be removed">✕</button>
@@ -643,15 +817,12 @@ async function loadElections() {
                 <h5>Results Summary:</h5>
                 <div class="results-grid">
                     ${resultsData.results && resultsData.results.length > 0 ? resultsData.results.map(r => {
-                        // Check if symbol is a base64 image or emoji/text
-                        const symbolDisplay = r.symbol && r.symbol.startsWith('data:image') 
-                            ? `<img src="${r.symbol}" alt="${r.name}" style="width: 40px; height: 40px; object-fit: contain; border-radius: 4px; border: 1px solid #ddd;">` 
-                            : `<span style="font-size: 32px;">${r.symbol || '🗳️'}</span>`;
+                        const mediaDisplay = getCandidateMediaHtml(r);
                         
                         return `
                         <div class="result-item">
                             <div style="display: flex; align-items: center; gap: 10px;">
-                                ${symbolDisplay}
+                                ${mediaDisplay}
                                 <div>
                                     <strong>${r.name}</strong> (${r.party})
                                     <br><small>${r.votes} votes</small>
@@ -1260,9 +1431,12 @@ function displayElectionChart(data, electionStatus) {
         <h3 style="margin-bottom: 15px; color: #333;">Detailed Results:</h3>
         ${candidates.map((candidate, index) => `
             <div style="background: #f9f9f9; padding: 15px; margin-bottom: 10px; border-radius: 12px; border-left: 4px solid ${colors[index]}; display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <strong style="font-size: 16px; color: #333;">${candidate.name}</strong>
-                    <span style="color: #666; margin-left: 10px;">(${candidate.party})</span>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    ${getCandidateMediaHtml(candidate)}
+                    <div>
+                        <strong style="font-size: 16px; color: #333;">${candidate.name}</strong>
+                        <span style="color: #666; margin-left: 10px;">(${candidate.party})</span>
+                    </div>
                 </div>
                 <div style="text-align: right;">
                     <div style="font-size: 24px; font-weight: 700; color: ${colors[index]};">${candidate.votes}</div>
@@ -1484,23 +1658,35 @@ document.addEventListener('click', function(event) {
 // =====================================================
 
 async function downloadTemplate() {
-    // Create a simple CSV template
-    const csvContent = `name,aadhaar,state
-Rajesh Kumar,123456789012,Maharashtra
-Priya Sharma,234567890123,Delhi
-Amit Patel,345678901234,Gujarat`;
-    
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'voter_import_template.csv';
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-    
-    showNotification('✅ Template downloaded successfully!', 'success');
+    try {
+        const response = await fetch('/api/admin/download-voter-template', {
+            headers: {
+                'Authorization': `Bearer ${sessionToken}`
+            }
+        });
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.detail || 'Failed to download template');
+        }
+
+        const blob = await response.blob();
+        const disposition = response.headers.get('content-disposition') || '';
+        const match = disposition.match(/filename="?([^";]+)"?/i);
+        const filename = match ? match[1] : 'voter_import_template.csv';
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        showNotification('✅ Template downloaded successfully!', 'success');
+    } catch (error) {
+        showNotification(`❌ ${error.message}`, 'error');
+    }
 }
 
 function handleFileSelect() {
@@ -1522,11 +1708,11 @@ function handleFileSelect() {
         }
         
         // Validate file type
-        const validExtensions = ['.csv', '.xlsx', '.xls'];
+        const validExtensions = ['.csv', '.xlsx'];
         const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
         
         if (!validExtensions.includes(fileExtension)) {
-            showNotification('❌ Invalid file type. Please upload CSV or Excel file', 'error');
+            showNotification('❌ Invalid file type. Please upload CSV or XLSX file', 'error');
             clearSelectedFile();
             return;
         }
@@ -1591,15 +1777,15 @@ async function handleFileUpload() {
         importStatsContent.innerHTML = `
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 15px;">
                 <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; border-left: 4px solid #3498db;">
-                    <div style="font-size: 28px; font-weight: bold; color: #3498db;">${data.total_rows || 0}</div>
+                    <div style="font-size: 28px; font-weight: bold; color: #3498db;">${data.total_rows || data.total || 0}</div>
                     <div style="color: #7f8c8d; font-size: 14px; margin-top: 5px;">Total Rows</div>
                 </div>
                 <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; border-left: 4px solid #27ae60;">
-                    <div style="font-size: 28px; font-weight: bold; color: #27ae60;">${data.imported || 0}</div>
+                    <div style="font-size: 28px; font-weight: bold; color: #27ae60;">${data.imported || data.imported_count || 0}</div>
                     <div style="color: #7f8c8d; font-size: 14px; margin-top: 5px;">Imported</div>
                 </div>
                 <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; border-left: 4px solid #e74c3c;">
-                    <div style="font-size: 28px; font-weight: bold; color: #e74c3c;">${data.errors ? data.errors.length : 0}</div>
+                    <div style="font-size: 28px; font-weight: bold; color: #e74c3c;">${data.error_count ?? (data.errors ? data.errors.length : 0)}</div>
                     <div style="color: #7f8c8d; font-size: 14px; margin-top: 5px;">Errors</div>
                 </div>
             </div>

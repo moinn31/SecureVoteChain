@@ -367,7 +367,7 @@ class Database:
             }
         }
     
-    def upsert_voter(self, aadhaar_number: str, name: str, state: str) -> Dict:
+    def upsert_voter(self, aadhaar_number: str, name: str, state: str, phone: Optional[str] = None, voter_id: Optional[str] = None) -> Dict:
         """
         Insert or update voter by Aadhaar number.
         
@@ -397,6 +397,8 @@ class Database:
             # Update existing voter
             voters[existing_voter_id]["name"] = name
             voters[existing_voter_id]["state"] = state
+            if phone:
+                voters[existing_voter_id]["phone"] = phone
             voters[existing_voter_id]["updated_at"] = timestamp
             self.save_json(self.voters_file, voters)
             
@@ -407,7 +409,7 @@ class Database:
             }
         else:
             # Insert new voter
-            voter_id = f"VOTER{len(voters) + 1:06d}"
+            voter_id = voter_id or f"VOTER{len(voters) + 1:06d}"
             voter_token = secrets.token_urlsafe(32)
             
             voter_data = {
@@ -416,6 +418,7 @@ class Database:
                 "name": name,
                 "state": state,
                 "voter_token": voter_token,
+                "phone": phone,
                 "registered_at": timestamp,
                 "updated_at": timestamp
             }
@@ -445,7 +448,7 @@ class Database:
         Bulk import voters from list.
         
         Args:
-            voters_list: List of dicts with keys: aadhaar_number, name, state
+            voters_list: List of dicts with keys: aadhaar_number, name, state, phone, voter_id
         
         Returns:
             Dict with keys: total, inserted, updated, errors
@@ -462,6 +465,8 @@ class Database:
                 aadhaar = str(voter.get("aadhaar_number", "")).strip()
                 name = str(voter.get("name", "")).strip()
                 state = str(voter.get("state", "")).strip()
+                phone = str(voter.get("phone", "")).strip() or None
+                voter_id = str(voter.get("voter_id", "")).strip() or None
                 
                 # Validation
                 if not aadhaar or not name or not state:
@@ -479,7 +484,7 @@ class Database:
                     continue
                 
                 # Upsert voter
-                upsert_result = self.upsert_voter(aadhaar, name, state)
+                upsert_result = self.upsert_voter(aadhaar, name, state, phone=phone, voter_id=voter_id)
                 
                 if upsert_result["success"]:
                     if upsert_result["action"] == "inserted":

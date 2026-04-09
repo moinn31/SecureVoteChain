@@ -142,6 +142,85 @@ class SecureSupabaseDatabase:
             voter_token=voter_data['voting_token'],
             phone=voter_data.get('phone')
         )
+
+    def bulk_import_voters(self, voters_list: List[Dict]) -> Dict:
+        """
+        Bulk import voters with Aadhaar-based upsert support.
+
+        Args:
+            voters_list: List of dicts with keys: aadhaar_number, name, state, phone, voter_id
+
+        Returns:
+            Dict with keys: total, inserted, updated, errors
+        """
+        import secrets
+
+        result = {
+            'total': len(voters_list),
+            'inserted': 0,
+            'updated': 0,
+            'errors': []
+        }
+
+        for idx, voter in enumerate(voters_list, 1):
+            try:
+                aadhaar = str(voter.get('aadhaar_number', voter.get('aadhaar', ''))).strip()
+                name = str(voter.get('name', '')).strip()
+                state = str(voter.get('state', '')).strip()
+                phone = str(voter.get('phone', '')).strip() or None
+                voter_id = str(voter.get('voter_id', '')).strip() or None
+
+                if not aadhaar or not name or not state:
+                    result['errors'].append({
+                        'row': voter.get('row_number', idx),
+                        'error': 'Missing required fields (aadhaar_number, name, or state)'
+                    })
+                    continue
+
+                if len(aadhaar) != 12 or not aadhaar.isdigit():
+                    result['errors'].append({
+                        'row': voter.get('row_number', idx),
+                        'error': f'Invalid Aadhaar number: {aadhaar}'
+                    })
+                    continue
+
+                existing = self.get_voter_by_aadhaar(aadhaar)
+
+                if existing:
+                    encrypted_data = self.encryption.encrypt_voter_data(aadhaar, name)
+                    update_payload = {
+                        'aadhaar_encrypted': encrypted_data['aadhaar_encrypted'],
+                        'name_encrypted': encrypted_data['name_encrypted'],
+                        'state': state,
+                        'updated_at': datetime.now().isoformat(),
+                    }
+                    if phone:
+                        update_payload['phone'] = phone
+
+                    self.client.table('voters').update(update_payload).eq('voter_id', existing['voter_id']).execute()
+                    result['updated'] += 1
+                else:
+                    if not voter_id:
+                        voter_id = f"VOT{secrets.token_hex(4).upper()}"
+
+                    voter_token = secrets.token_hex(32)
+                    self.register_voter_secure(
+                        aadhaar=aadhaar,
+                        name=name,
+                        state=state,
+                        voter_id=voter_id,
+                        voter_token=voter_token,
+                        phone=phone,
+                    )
+                    result['inserted'] += 1
+
+            except Exception as e:
+                result['errors'].append({
+                    'row': voter.get('row_number', idx),
+                    'error': str(e)
+                })
+
+        return result
     
     def get_voter_by_token_hash(self, voter_token_hash: str) -> Optional[Dict]:
         """Get voter by hashed token (for authentication)"""
@@ -317,8 +396,21 @@ class SecureSupabaseDatabase:
                 print(f"✅ Voter has already voted in election {election_id}")
             return has_voted
         except Exception as e:
-            print(f"⚠️ Error checking vote status: {e}")
-            # If vote_tracking table doesn't exist, return False to allow voting
+            print(f"⚠️ vote_tracking unavailable, checking votes table instead: {e}")
+
+        try:
+            result = self.client.table('votes').select('id').eq(
+                'election_id', election_id
+            ).eq(
+                'voter_token_hash', voter_token_hash
+            ).execute()
+
+            has_voted = len(result.data) > 0
+            if has_voted:
+                print(f"✅ Voter has already voted in election {election_id} (votes table fallback)")
+            return has_voted
+        except Exception as e:
+            print(f"⚠️ Error checking vote status in votes table: {e}")
             return False
     
     def has_voted(self, election_id: str, voter_token: str) -> bool:
@@ -370,32 +462,58 @@ class SecureSupabaseDatabase:
             f"{commitment}:{vote_data['timestamp']}".encode()
         ).hexdigest()
         
-        # Save vote to database
-        try:
-            self.client.table('votes').insert({
+        # Save vote to database. Try the secure schema first, then fall back to
+        # smaller payloads so the app works across the different table versions
+        # used in this project.
+        vote_payloads = [
+            {
                 'election_id': vote_data['election_id'],
-                'candidate_id': vote_data['candidate_id'],
+                'candidate_encrypted': candidate_encrypted,
+                'commitment': commitment,
+                'proof_hash': proof_hash,
+                'ring_signature': json.dumps({
+                    'transaction_hash': transaction_hash,
+                    'timestamp': vote_data['timestamp']
+                }),
+                'transaction_hash': transaction_hash,
+                'timestamp': vote_data['timestamp'],
+            },
+            {
+                'election_id': vote_data['election_id'],
                 'candidate_encrypted': candidate_encrypted,
                 'commitment': commitment,
                 'proof_hash': proof_hash,
                 'transaction_hash': transaction_hash,
-                'created_at': vote_data['timestamp']
-            }).execute()
-            print(f"✅ Vote recorded in votes table: Election {vote_data['election_id']}, Candidate {vote_data['candidate_id']}")
-        except Exception as e:
-            print(f"❌ Error saving vote to votes table: {e}")
-        
-        # Track that this voter has voted (without linking to specific vote)
+                'timestamp': vote_data['timestamp'],
+            },
+        ]
+
+        vote_insert_error = None
+        for payload in vote_payloads:
+            try:
+                self.client.table('votes').insert(payload).execute()
+                print(f"✅ Vote recorded in votes table: Election {vote_data['election_id']}, Candidate {vote_data['candidate_id']}")
+                vote_insert_error = None
+                break
+            except Exception as e:
+                vote_insert_error = e
+                print(f"⚠️ Vote insert attempt failed: {e}")
+
+        if vote_insert_error is not None:
+            raise RuntimeError(f"Could not save vote to votes table: {vote_insert_error}")
+
+        # Track that this voter has voted (without linking to specific vote).
+        # If the vote_tracking table is missing in Supabase, the vote itself is
+        # still stored; the frontend keeps the voted state in localStorage.
         try:
-            voter_token_hash = hash_voter_token(vote_data['voter_token'])
             self.client.table('vote_tracking').insert({
                 'election_id': vote_data['election_id'],
-                'voter_token_hash': voter_token_hash,
+                'voter_token_hash': hash_voter_token(vote_data['voter_token']),
                 'voted_at': vote_data['timestamp']
             }).execute()
             print(f"✅ Vote tracking recorded for election {vote_data['election_id']}")
         except Exception as e:
-            print(f"⚠️ Error saving vote tracking (may already exist): {e}")
+            print(f"⚠️ Vote tracking unavailable or duplicate row: {e}")
         
         return transaction_hash
     
@@ -880,8 +998,24 @@ class SecureSupabaseDatabase:
             List of voter dictionaries with encrypted data
         """
         try:
-            result = self.client.table('voters').select('*').execute()
-            voters = [dict(row) for row in result.data] if result.data else []
+            # Supabase returns up to 1000 rows per request by default, so fetch in pages.
+            voters = []
+            page_size = 1000
+            offset = 0
+
+            while True:
+                page = self.client.table('voters').select('*').range(offset, offset + page_size - 1).execute()
+                batch = [dict(row) for row in page.data] if page.data else []
+
+                if not batch:
+                    break
+
+                voters.extend(batch)
+
+                if len(batch) < page_size:
+                    break
+
+                offset += page_size
             
             # Map voter_token to voting_token for consistency
             for voter in voters:
@@ -906,34 +1040,43 @@ class SecureSupabaseDatabase:
             Voter dictionary if found, None otherwise
         """
         try:
-            # Since Aadhaar is encrypted, we need to get all voters and decrypt to find match
-            # This is intentionally slow for security - Aadhaar should not be used for frequent lookups
-            result = self.client.table('voters').select('*').execute()
-            
-            if not result.data:
-                return None
-            
-            for voter_data in result.data:
-                try:
-                    # Decrypt the Aadhaar to check if it matches
-                    decrypted = self.encryption.decrypt_voter_data(
-                        voter_data['aadhaar_encrypted'],
-                        voter_data['name_encrypted']
-                    )
-                    
-                    if decrypted['aadhaar'] == aadhaar_number:
-                        # Found matching voter
-                        voter = dict(voter_data)
-                        voter['aadhaar'] = decrypted['aadhaar']
-                        voter['name'] = decrypted['name']
-                        voter['voting_token'] = voter.get('voter_token', '')
-                        voter['phone'] = voter_data.get('phone', '')  # Include phone
-                        print(f"✅ Found voter by Aadhaar: {voter.get('voter_id')}")
-                        return voter
-                        
-                except Exception as decrypt_error:
-                    # Skip voters that can't be decrypted
-                    continue
+            # Since Aadhaar is encrypted, scan voters page-by-page and decrypt to find match.
+            page_size = 1000
+            offset = 0
+
+            while True:
+                result = self.client.table('voters').select('*').range(offset, offset + page_size - 1).execute()
+                batch = result.data if result.data else []
+
+                if not batch:
+                    break
+
+                for voter_data in batch:
+                    try:
+                        # Decrypt the Aadhaar to check if it matches
+                        decrypted = self.encryption.decrypt_voter_data(
+                            voter_data['aadhaar_encrypted'],
+                            voter_data['name_encrypted']
+                        )
+
+                        if decrypted['aadhaar'] == aadhaar_number:
+                            # Found matching voter
+                            voter = dict(voter_data)
+                            voter['aadhaar'] = decrypted['aadhaar']
+                            voter['name'] = decrypted['name']
+                            voter['voting_token'] = voter.get('voter_token', '')
+                            voter['phone'] = voter_data.get('phone', '')  # Include phone
+                            print(f"✅ Found voter by Aadhaar: {voter.get('voter_id')}")
+                            return voter
+
+                    except Exception as decrypt_error:
+                        # Skip voters that can't be decrypted
+                        continue
+
+                if len(batch) < page_size:
+                    break
+
+                offset += page_size
             
             print(f"❌ No voter found with Aadhaar: {aadhaar_number[:4]}****")
             return None
@@ -1097,8 +1240,24 @@ class SecureSupabaseDatabase:
             List of vote dictionaries
         """
         try:
-            result = self.client.table('votes').select('*').eq('election_id', election_id).execute()
-            votes = [dict(row) for row in result.data] if result.data else []
+            votes = []
+            page_size = 1000
+            offset = 0
+
+            while True:
+                result = self.client.table('votes').select('*').eq('election_id', election_id).range(offset, offset + page_size - 1).execute()
+                batch = [dict(row) for row in result.data] if result.data else []
+
+                if not batch:
+                    break
+
+                votes.extend(batch)
+
+                if len(batch) < page_size:
+                    break
+
+                offset += page_size
+
             print(f"✅ Retrieved {len(votes)} votes for election {election_id}")
             return votes
             
@@ -1114,8 +1273,24 @@ class SecureSupabaseDatabase:
             List of vote dictionaries
         """
         try:
-            result = self.client.table('votes').select('*').execute()
-            votes = [dict(row) for row in result.data] if result.data else []
+            votes = []
+            page_size = 1000
+            offset = 0
+
+            while True:
+                result = self.client.table('votes').select('*').range(offset, offset + page_size - 1).execute()
+                batch = [dict(row) for row in result.data] if result.data else []
+
+                if not batch:
+                    break
+
+                votes.extend(batch)
+
+                if len(batch) < page_size:
+                    break
+
+                offset += page_size
+
             print(f"✅ Retrieved {len(votes)} total votes")
             return votes
             

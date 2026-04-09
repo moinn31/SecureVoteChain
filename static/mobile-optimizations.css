@@ -1,0 +1,590 @@
+/* =====================================================
+   MOBILE OPTIMIZATION ENHANCEMENTS FOR SECUREVOTECHAIN
+   Additional responsive improvements for all devices
+   ===================================================== */
+
+/* ========== MOBILE OPTIMIZATIONS (320px - 767px) ========== */
+
+@media (max-width: 767px) {
+    /* Adjust body padding on mobile */
+    body {
+        padding: 8px;
+    }
+
+    .container {
+        border-radius: 12px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+        padding: 0;
+        margin: 0;
+    }
+
+    /* Header responsive adjustments */
+    header {
+        padding: 20px 16px;
+    }
+
+    header h1 {
+        font-size: 1.8rem;
+        margin-bottom: 8px;
+    }
+
+    .subtitle {
+        font-size: 0.95rem;
+    }
+
+    /* Main content area */
+    main {
+        padding: 16px !important;
+    }
+
+    /* Ensure buttons are touch-friendly */
+    .btn, button, input[type="button"], input[type="submit"], input[type="reset"] {
+        min-height: 44px;
+        padding: 12px 16px;
+        font-size: 14px;
+        width: auto;
+    }
+
+    /* Full width buttons in card contexts */
+    .card .btn, .panel-card .btn, .feature-card .btn {
+        width: 100%;
+        display: block;
+    }
+
+    .portal-btn {
+        display: block;
+        width: 100%;
+        margin-top: 12px;
+    }
+
+    /* Feature card adjustments */
+    .feature-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .feature-card {
+        padding: 16px;
+        border-radius: 12px;
+    }
+
+    .feature-icon {
+        font-size: 32px;
+        margin-bottom: 10px;
+    }
+
+    .feature-card h3 {
+        font-size: 15px;
+    }
+
+    .feature-card p {
+        font-size: 13px;
+    }
+
+    /* Portal cards - mobile stacked */
+    .portal-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .portal-card {
+        padding: 20px;
+        border-radius: 12px;
+    }
+
+    .portal-icon {
+        font-size: 40px;
+    }
+
+    .portal-card h3 {
+        font-size: 16px;
+    }
+
+    .portal-card p {
+        font-size: 13px;
+    }
+
+    /* Steps - mobile responsive */
+    .steps {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+
+    .step-number {
+        width: 44px;
+        height: 44px;
+        font-size: 16px;
+    }
+
+    .step h4 {
+        font-size: 14px;
+    }
+
+    .step p {
+        font-size: 13px;
+    }
+
+    /* Demo credentials - mobile */
+    .demo-credentials {
+        padding: 16px;
+        margin-top: 20px;
+    }
+
+    .demo-credentials h3 {
+        font-size: 14px;
+        margin-bottom: 12px;
+    }
+
+    .credentials-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .cred-box {
+        padding: 12px;
+        border-radius: 8px;
+    }
+
+    .cred-box h4 {
+        font-size: 13px;
+        margin-bottom: 6px;
+    }
+
+    .cred-box p {
+        font-size: 12px;
+        margin: 3px 0;
+    }
+
+    /* Auth section - mobile */
+    .auth-section {
+        max-width: 100%;
+        margin: 16px auto;
+        padding: 16px;
+        border-radius: 12px;
+    }
+
+    .auth-section h2 {
+        font-size: 18px;
+        margin-bottom: 14px;
+    }
+
+    .auth-section label {
+        font-size: 13px;
+    }
+
+    .auth-section input,
+    .auth-section select {
+        font-size: 16px;
+        padding: 12px;
+    }
+
+    .form-group {
+        margin-bottom: 14px;
+    }
+
+    .form-group label {
+        font-size: 13px;
+        margin-bottom: 6px;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        font-size: 16px;
+        padding: 12px;
+    }
+
+    /* Back link - mobile */
+    .back-link {
+        position: static;
+        padding: 8px 12px;
+        margin-bottom: 12px;
+        font-size: 13px;
+        display: inline-block;
+        border-radius: 8px;
+    }
+
+    /* Voting card - mobile */
+    .voting-card {
+        padding: 16px;
+        border-radius: 12px;
+        margin-bottom: 12px;
+    }
+
+    .candidate-img {
+        width: 100%;
+        height: auto;
+    }
+
+    .vote-btn {
+        width: 100%;
+        margin-top: 12px;
+    }
+
+    /* Table responsive - mobile */
+    table {
+        font-size: 12px;
+    }
+
+    table th, table td {
+        padding: 8px 4px;
+    }
+
+    .table-responsive {
+        border-radius: 8px;
+    }
+
+    /* Footer - mobile */
+    footer {
+        padding: 16px;
+        font-size: 12px;
+    }
+
+    /* Dropdowns - mobile friendly */
+    select, input[type="select"] {
+        font-size: 16px;
+    }
+
+    /* Info section - mobile */
+    .info-section {
+        margin: 20px 0;
+    }
+
+    .info-section h2 {
+        font-size: 18px;
+        margin-bottom: 16px;
+    }
+
+    /* Portal section - mobile */
+    .portal-section {
+        margin: 24px 0;
+    }
+
+    .portal-section h2 {
+        font-size: 18px;
+        margin-bottom: 16px;
+    }
+
+    /* Ensure inputs are not zoomed on iOS */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    input[type="tel"],
+    input[type="url"],
+    select,
+    textarea {
+        font-size: 16px;
+        border-radius: 8px;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+        font-size: 16px;
+    }
+
+    /* Flex utilities for mobile */
+    .flex-center {
+        justify-content: center;
+        align-items: center;
+    }
+
+    .flex-between {
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    /* Spacing adjustments */
+    .mt-4 { margin-top: 12px; }
+    .mb-4 { margin-bottom: 12px; }
+    .p-4 { padding: 12px; }
+
+    /* Icon sizes - mobile */
+    .icon-lg { font-size: 32px; }
+    .icon-md { font-size: 24px; }
+    .icon-sm { font-size: 18px; }
+}
+
+/* ========== TABLET SPECIFIC (768px - 1023px) ========== */
+
+@media (min-width: 768px) and (max-width: 1023px) {
+    .container {
+        border-radius: 14px;
+    }
+
+    header {
+        padding: 28px 24px;
+    }
+
+    header h1 {
+        font-size: 2rem;
+    }
+
+    .subtitle {
+        font-size: 1rem;
+    }
+
+    main {
+        padding: 24px;
+    }
+
+    .feature-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 18px;
+    }
+
+    .portal-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+    }
+
+    .steps {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+    }
+
+    .credentials-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+
+    .form-row {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+
+    .auth-section {
+        max-width: 80%;
+    }
+
+    button, .btn {
+        padding: 12px 24px;
+    }
+}
+
+/* ========== DESKTOP SPECIFIC (1024px+) ========== */
+
+@media (min-width: 1024px) {
+    .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        border-radius: 16px;
+    }
+
+    header {
+        padding: 40px 35px;
+    }
+
+    header h1 {
+        font-size: 2.5rem;
+        margin-bottom: 12px;
+    }
+
+    .subtitle {
+        font-size: 1.1rem;
+    }
+
+    main {
+        padding: 40px;
+    }
+
+    .feature-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 25px;
+    }
+
+    .portal-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 35px;
+    }
+
+    .steps {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 30px;
+    }
+
+    .credentials-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+    }
+
+    .form-row {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+    }
+
+    .auth-section {
+        max-width: 500px;
+    }
+
+    button, .btn {
+        padding: 14px 28px;
+    }
+}
+
+/* ========== LANDSCAPE OPTIMIZATION ========== */
+
+@media (max-height: 600px) and (orientation: landscape) {
+    header {
+        padding: 12px 16px;
+    }
+
+    header h1 {
+        font-size: 1.4rem;
+        margin-bottom: 4px;
+    }
+
+    .subtitle {
+        font-size: 0.85rem;
+        display: none;
+    }
+
+    main {
+        padding: 12px;
+    }
+
+    .feature-grid,
+    .portal-grid,
+    .steps {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 12px;
+    }
+
+    .feature-card,
+    .portal-card {
+        padding: 12px;
+    }
+
+    .feature-icon,
+    .portal-icon {
+        font-size: 28px;
+        margin-bottom: 6px;
+    }
+
+    button, .btn {
+        padding: 8px 12px;
+        min-height: 36px;
+    }
+}
+
+/* ========== PRINT OPTIMIZATION ========== */
+
+@media print {
+    body {
+        padding: 0;
+        background: white;
+    }
+
+    .container {
+        box-shadow: none;
+        max-width: 100%;
+        margin: 0;
+        border-radius: 0;
+    }
+
+    header {
+        page-break-after: avoid;
+    }
+
+    .no-print, .btn, button, .back-link {
+        display: none !important;
+    }
+
+    main {
+        padding: 0;
+    }
+
+    .card, .panel-card, .feature-card {
+        page-break-inside: avoid;
+        box-shadow: none;
+        border: 1px solid #ddd;
+    }
+}
+
+/* ========== ACCESSIBILITY IMPROVEMENTS ========== */
+
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+@media (prefers-color-scheme: dark) {
+    body {
+        background: #1a1a2e;
+        color: #e9ecef;
+    }
+
+    .container, .card, .auth-section {
+        background: #16213e;
+        color: #e9ecef;
+    }
+
+    header {
+        background: linear-gradient(135deg, #FF9933 0%, #FF6600 100%);
+    }
+
+    input, select, textarea {
+        background: #0f1419;
+        color: #e9ecef;
+        border-color: #2d3748;
+    }
+}
+
+/* ========== HIGH PIXEL DENSITY SCREENS ========== */
+
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    * {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+        text-rendering: optimizeLegibility;
+    }
+}
+
+/* ========== TOUCH DEVICE OPTIMIZATIONS ========== */
+
+@media (hover: none) and (pointer: coarse) {
+    /* Increase touch targets */
+    button, .btn, a, input, select {
+        min-height: 48px;
+        min-width: 48px;
+    }
+
+    /* Reduce hover effects */
+    .portal-card:hover {
+        transform: none;
+    }
+
+    .feature-card:hover {
+        transform: none;
+    }
+
+    /* Add active state instead */
+    button:active, .btn:active {
+        opacity: 0.8;
+    }
+}
+
+/* ========== LARGE TEXT MODE ========== */
+
+@media (prefers-contrast: more) {
+    body {
+        font-weight: 500;
+    }
+
+    button, .btn {
+        font-weight: 700;
+    }
+
+    input, select, textarea {
+        border-width: 3px;
+    }
+}

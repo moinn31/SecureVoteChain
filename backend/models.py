@@ -22,6 +22,8 @@ class Candidate(BaseModel):
     party: str
     symbol: str
     description: Optional[str] = None
+    photo: Optional[str] = None
+    logo: Optional[str] = None
     photo_url: Optional[str] = None
     age: Optional[int] = None
     education: Optional[str] = None

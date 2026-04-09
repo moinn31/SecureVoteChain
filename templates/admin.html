@@ -2,9 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Admin Dashboard - SecureVoteChain</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/responsive.css">
+    <link rel="stylesheet" href="/static/mobile-optimizations.css">
     <link rel="stylesheet" href="/static/dark-mode.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="/static/translations.js"></script>
@@ -21,6 +25,7 @@
             font-family: 'Inter', sans-serif;
             background: #FFFFFF;
             color: #2c3e50;
+            overflow-x: hidden;
         }
         
         /* Tricolor top banner */
@@ -414,26 +419,184 @@
             .form-row {
                 grid-template-columns: 1fr;
             }
+
+            .sidebar-toggle {
+                display: none;
+            }
+
+            .topbar {
+                flex-wrap: wrap;
+                gap: 12px;
+                align-items: center;
+            }
+
+            .user-info {
+                flex-wrap: wrap;
+                justify-content: flex-end;
+            }
+
+            .content-area {
+                padding: 20px;
+            }
         }
 
-        @media (max-width: 768px) {
-            .login-card {
-                padding: 40px 30px;
-                margin: 0 15px;
+        @media (max-width: 640px) {
+            .sidebar {
+                display: block;
+                position: fixed;
+                top: 8px;
+                left: 0;
+                width: 220px;
+                height: calc(100% - 8px);
+                transform: translateX(-100%);
+                transition: transform 0.28s ease;
+                pointer-events: none;
+                z-index: 100;
+            }
+
+            .sidebar-overlay {
+                display: none;
+                opacity: 0;
+                transition: opacity 0.2s ease;
+            }
+
+            .sidebar.mobile-open {
+                display: block;
+                transform: translateX(0);
+                pointer-events: auto;
+            }
+
+            .sidebar-overlay.show {
+                display: block;
+                opacity: 1;
+            }
+
+            .sidebar-toggle {
+                display: flex;
+            }
+
+            .main-content {
+                margin-left: 0;
+                padding-top: 72px;
+                width: 100%;
+                max-width: 100vw;
+                overflow-x: hidden;
+            }
+
+            .topbar {
+                position: sticky;
+                top: 8px;
+                left: 0;
+                right: 0;
+                width: 100%;
+                z-index: 98;
+                background: white;
+                border-bottom: 1px solid #e0e0e0;
+                flex-direction: column;
+                justify-content: flex-start;
+                align-items: stretch;
+                padding: 12px 10px;
+                gap: 10px;
+            }
+
+            .topbar h1 {
+                font-size: 20px !important;
+                line-height: 1.15;
+            }
+
+            .topbar p {
+                font-size: 12px !important;
+            }
+
+            .topbar > div:first-child,
+            .topbar .user-info {
+                width: 100%;
+            }
+
+            .topbar .user-info {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 8px;
+                align-items: stretch;
+            }
+
+            .topbar .user-info > div {
+                width: 100%;
+                margin-right: 0 !important;
+            }
+
+            .topbar .user-info select,
+            .topbar .user-info button,
+            .topbar .user-info .btn {
+                width: 100%;
+            }
+
+            #notificationDropdown {
+                width: calc(100vw - 20px) !important;
+                max-width: 360px;
+            }
+
+            .content-area {
+                padding: 12px 10px 18px;
+                margin-top: 8px;
             }
 
             .stats-grid {
                 grid-template-columns: 1fr;
+                gap: 12px;
             }
 
-            .topbar {
-                flex-direction: column;
-                gap: 15px;
-                align-items: flex-start;
+            .stat-card,
+            .panel-card,
+            .election-card {
+                width: 100%;
+                max-width: 100%;
+            }
+
+            .panel-card {
+                padding: 14px;
+                border-radius: 12px;
+            }
+
+            .panel-card > div[style*="grid-template-columns: 2fr 1fr"],
+            .panel-card > div[style*="grid-template-columns: repeat(3, 1fr)"],
+            .panel-card > div[style*="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr))"] {
+                grid-template-columns: 1fr !important;
+            }
+
+            .panel-card > div[style*="display: grid"],
+            .panel-card > div[style*="display:flex"],
+            .panel-card > div[style*="display: flex"] {
+                grid-template-columns: 1fr !important;
+                flex-direction: column !important;
+                align-items: stretch !important;
+            }
+
+            .panel-card button,
+            .panel-card .btn {
+                width: 100%;
+            }
+
+            .login-card {
+                padding: 20px;
+                margin: 0 12px;
             }
 
             .candidate-row {
                 grid-template-columns: 1fr;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            table {
+                font-size: 12px;
+            }
+
+            table th, table td {
+                padding: 8px 4px;
             }
         }
 
@@ -675,6 +838,14 @@
 
     <!-- Dashboard Layout -->
     <div id="dashboardLayout" style="display: none;">
+        <!-- Mobile Menu Toggle Button -->
+        <button class="sidebar-toggle" id="sidebarToggle" title="Toggle Menu">
+            <span style="font-size: 24px; display: flex; align-items: center; justify-content: center;">☰</span>
+        </button>
+        
+        <!-- Sidebar Overlay (for mobile) -->
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
         <!-- Sidebar -->
         <div class="sidebar" id="sidebar">
             <div class="sidebar-header">
@@ -896,12 +1067,12 @@
                                 <div class="candidate-row" style="display: grid; grid-template-columns: 1fr 1fr 120px 120px 50px; gap: 12px; align-items: center; margin-bottom: 12px; padding: 12px; background: #f9fafb; border-radius: 8px;">
                                     <input type="text" class="candidate-name" data-translate="candidateName" placeholder="Candidate Name *" required style="padding: 10px; border: 2px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
                                     <input type="text" class="candidate-party" data-translate="party" placeholder="Party *" required style="padding: 10px; border: 2px solid #e5e7eb; border-radius: 6px; font-size: 14px;">
-                                    <label style="background: #3b82f6; color: white; padding: 10px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; text-align: center; white-space: nowrap; transition: all 0.3s;">
-                                        📷 <span data-translate="uploadPhoto">Photo</span>
+                                    <label style="background: #3b82f6; color: white; padding: 10px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; text-align: center; white-space: nowrap; transition: all 0.3s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; overflow: hidden;">
+                                        <span class="media-label-text">📷 Photo</span>
                                         <input type="file" class="candidate-photo" accept="image/png,image/jpeg,image/jpg" style="display: none;" onchange="previewCandidatePhoto(this)">
                                     </label>
-                                    <label style="background: #8b5cf6; color: white; padding: 10px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; text-align: center; white-space: nowrap; transition: all 0.3s;">
-                                        🎨 <span data-translate="uploadLogo">Logo</span>
+                                    <label style="background: #8b5cf6; color: white; padding: 10px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; text-align: center; white-space: nowrap; transition: all 0.3s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; overflow: hidden;">
+                                        <span class="media-label-text">🎨 Logo</span>
                                         <input type="file" class="candidate-logo" accept="image/png,image/jpeg,image/jpg" style="display: none;" onchange="previewCandidateLogo(this)">
                                     </label>
                                     <button type="button" class="remove-candidate-btn" onclick="removeFirstCandidate(this)" style="background: #e5e7eb; color: #9ca3af; padding: 10px; border: none; border-radius: 6px; cursor: not-allowed; font-size: 16px;" disabled title="First candidate cannot be removed">✕</button>
@@ -927,7 +1098,7 @@
                 <div id="importView" class="dashboard-view" style="display: none;">
                     <div class="panel-card">
                         <h3 style="margin: 0 0 10px 0; font-size: 20px; color: #2c3e50;">📤 <span data-translate="importVoterData">Import Voter Data</span></h3>
-                        <p style="color: #7f8c8d; margin-bottom: 25px;" data-translate="importVoterDescription">Upload Excel or CSV file with state-wise voter data (Aadhaar number, name, and state)</p>
+                        <p style="color: #7f8c8d; margin-bottom: 25px;" data-translate="importVoterDescription">Upload a CSV or XLSX file with voter data using the sample template columns</p>
                         
                         <!-- Sample Template Download -->
                         <div style="background: linear-gradient(135deg, rgba(255, 153, 51, 0.1), rgba(19, 136, 8, 0.1)); padding: 20px; border-radius: 12px; margin-bottom: 25px; border-left: 4px solid #FF9933;">
@@ -935,7 +1106,7 @@
                                 <span style="font-size: 36px;">📋</span>
                                 <div style="flex: 1;">
                                     <h4 style="margin: 0 0 5px 0; color: #2c3e50;" data-translate="needTemplate">Need a template?</h4>
-                                    <p style="margin: 0; color: #7f8c8d; font-size: 14px;" data-translate="downloadSampleTemplate">Download our sample Excel template with the correct format</p>
+                                    <p style="margin: 0; color: #7f8c8d; font-size: 14px;" data-translate="downloadSampleTemplate">Download our sample CSV template with the correct columns</p>
                                 </div>
                                 <button id="downloadTemplateBtn" class="btn btn-secondary" style="white-space: nowrap;">
                                     ⬇️ <span data-translate="downloadTemplate">Download Template</span>
@@ -947,9 +1118,9 @@
                         <div style="background: white; border: 2px dashed #d1d5db; border-radius: 12px; padding: 40px; text-align: center; transition: all 0.3s;" id="uploadDropZone">
                             <div style="font-size: 48px; margin-bottom: 15px;">📁</div>
                             <h4 style="margin: 0 0 10px 0; color: #2c3e50;" data-translate="selectOrDropFile">Select or Drop File Here</h4>
-                            <p style="color: #7f8c8d; margin-bottom: 20px;" data-translate="supportedFormats">Supported formats: .xlsx, .xls, .csv (Max 10MB)</p>
+                            <p style="color: #7f8c8d; margin-bottom: 20px;" data-translate="supportedFormats">Supported formats: .csv, .xlsx (Max 10MB)</p>
                             
-                            <input type="file" id="voterFileInput" accept=".csv,.xlsx,.xls" style="display: none;">
+                            <input type="file" id="voterFileInput" accept=".csv,.xlsx" style="display: none;">
                             <button id="selectFileBtn" class="btn btn-secondary">
                                 📂 <span data-translate="chooseFile">Choose File</span>
                             </button>
@@ -978,25 +1149,31 @@
                                 <div style="display: flex; gap: 10px;">
                                     <span>✓</span>
                                     <div>
-                                        <strong>Required Columns:</strong> state, aadhaar_number, name
+                                        <strong>Required Columns:</strong> Name, Aadhaar, State
                                     </div>
                                 </div>
                                 <div style="display: flex; gap: 10px;">
                                     <span>✓</span>
                                     <div>
-                                        <strong>Aadhaar Number:</strong> Must be 12 digits (e.g., 123456789012)
+                                        <strong>Aadhaar:</strong> Must be 12 digits (e.g., 123456789012)
                                     </div>
                                 </div>
                                 <div style="display: flex; gap: 10px;">
                                     <span>✓</span>
                                     <div>
-                                        <strong>State:</strong> Valid Indian state/UT name (e.g., Maharashtra, Delhi)
+                                        <strong>Phone:</strong> Optional but recommended for OTP workflows
                                     </div>
                                 </div>
                                 <div style="display: flex; gap: 10px;">
                                     <span>✓</span>
                                     <div>
-                                        <strong>Duplicate Handling:</strong> Existing voters will be updated, new voters will be inserted
+                                        <strong>Extra Columns:</strong> Voter_ID, Age, Gender, City, Booth_Number, Ward_Number, Election_ID, Vote_Status
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 10px;">
+                                    <span>✓</span>
+                                    <div>
+                                        <strong>Duplicate Handling:</strong> Existing voters are updated by Aadhaar, new voters are inserted
                                     </div>
                                 </div>
                             </div>
@@ -1166,5 +1343,6 @@
             });
         });
     </script>
+    <script src="/static/responsive-utils.js"></script>
 </body>
 </html>
