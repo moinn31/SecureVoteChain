@@ -431,10 +431,11 @@ async function loadElections() {
             }
         });
         const data = await response.json();
+        const elections = data.elections || [];
         
         const electionsList = document.getElementById('electionsList');
         
-        if (!data.elections || data.elections.length === 0) {
+        if (elections.length === 0) {
             electionsList.innerHTML = `
                 <div class="info-box">
                     <p><strong>No elections available for ${voterState || 'your state'}</strong></p>
@@ -445,15 +446,24 @@ async function loadElections() {
         }
         
         electionsList.innerHTML = '';
+
+        const activeElections = elections.filter(election => election.status === 'active');
+
+        // Check vote status in parallel for faster page rendering.
+        const voteStatusEntries = await Promise.all(
+            activeElections.map(async (election) => {
+                const hasVoted = await checkIfVoted(election.id);
+                return [election.id, hasVoted];
+            })
+        );
+        const hasVotedByElectionId = Object.fromEntries(voteStatusEntries);
         
-        // Check which elections this voter has already voted in
-        for (const election of data.elections) {
-            if (election.status === 'active') {
+        // Render active elections list
+        for (const election of activeElections) {
                 // Log election ID for debugging
                 console.log('Election ID:', election.id, 'Title:', election.title);
                 
-                // Check if already voted
-                const hasVoted = await checkIfVoted(election.id);
+                const hasVoted = hasVotedByElectionId[election.id] === true;
                 
                 const card = document.createElement('div');
                 card.className = 'election-card';
@@ -549,9 +559,7 @@ async function loadElections() {
                         </button>
                     `;
                 }
-                
                 electionsList.appendChild(card);
-            }
         }
         
         if (electionsList.innerHTML === '') {
@@ -900,7 +908,11 @@ async function loadVoterElectionChart(electionId, electionStatus) {
 }
 
 function displayVoterElectionChart(data, electionStatus) {
-    const candidates = data.results;
+    const candidates = [...(data.results || [])].sort((a, b) => {
+        const voteDiff = (b.votes || 0) - (a.votes || 0);
+        if (voteDiff !== 0) return voteDiff;
+        return (a.name || '').localeCompare(b.name || '');
+    });
     const totalVotes = candidates.reduce((sum, c) => sum + c.votes, 0);
     
     // Update statistics
