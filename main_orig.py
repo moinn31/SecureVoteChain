@@ -1,16 +1,3 @@
-import socket
-# Patch getaddrinfo to bypass DNS issues with supabase
-_orig_getaddrinfo = socket.getaddrinfo
-def patched_getaddrinfo(*args, **kwargs):
-    try:
-        host = args[0]
-        if isinstance(host, str) and host.endswith('.supabase.co'):
-            return _orig_getaddrinfo('104.18.38.10', *args[1:], **kwargs)
-    except Exception:
-        pass
-    return _orig_getaddrinfo(*args, **kwargs)
-socket.getaddrinfo = patched_getaddrinfo
-
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -323,44 +310,31 @@ def send_otp_sms(phone, otp_code, context):
             return False
     except Exception as twilio_error:
         print(f"❌ Twilio SMS failed: {twilio_error}")
-        return str(twilio_error)
+        return False
 
-
-@app.post("/api/voter/fetch-phone")
-async def fetch_phone(data: Dict):
-    voter_id = data.get("voter_id")
-    aadhaar_number = data.get("aadhaar_number")
-    
-    if not voter_id or not aadhaar_number or len(aadhaar_number) != 12:
-        raise HTTPException(status_code=400, detail="Invalid inputs")
-        
-    voter = db.get_voter_by_aadhaar(aadhaar_number)
-    if not voter or voter.get("voter_id") != voter_id:
-        raise HTTPException(status_code=404, detail="Invalid Voter ID or Aadhaar Number")
-        
-    phone = db.get_phone_by_aadhaar(aadhaar_number)
-    if phone:
-        masked_phone = phone[:3] + "******" + phone[-3:] if len(phone) > 10 else "***" + phone[-4:]
-        return {"success": True, "phone": masked_phone}
-    else:
-         raise HTTPException(status_code=404, detail="No registered mobile number found")
 
 @app.post("/api/voter/request-otp")
 async def request_otp(data: Dict):
     """
     Request OTP for voter login via SMS.
+    
+    Flow:
+    1. Validate Aadhaar number (12 digits)
+    2. Look up voter's phone from database
+    3. Send OTP via Supabase Auth SMS
+    4. Return success with masked phone
     """
     aadhaar_number = data.get("aadhaar_number")
-    voter_id = data.get("voter_id")
     
     if not aadhaar_number or len(aadhaar_number) != 12:
         raise HTTPException(status_code=400, detail="Invalid Aadhaar number (must be 12 digits)")
     
-    voter = db.get_voter_by_aadhaar(aadhaar_number)
-    if not voter or (voter_id and voter.get("voter_id") != voter_id):
-        raise HTTPException(status_code=404, detail="Aadhaar number not registered or Voter ID mismatch.")
-        
+    # Get voter's phone from database (optional in local fallback mode)
     phone = db.get_phone_by_aadhaar(aadhaar_number)
+    voter = db.get_voter_by_aadhaar(aadhaar_number)
+
+    if not voter:
+        raise HTTPException(status_code=404, detail="Aadhaar number not registered. Please contact admin.")
 
     phone = normalize_phone_number(phone)
     
@@ -405,17 +379,10 @@ async def request_otp(data: Dict):
     # Mask phone for privacy (show last 4 digits)
     masked_phone = "***" + phone[-4:] if phone and len(phone) >= 4 else "local-mode"
     
-    if sms_sent is True:
-        final_msg = f"OTP sent to {masked_phone} via SMS. Check your messages."
-    elif isinstance(sms_sent, str):
-        final_msg = f"SMS failed: {sms_sent}"
-    else:
-        final_msg = f"OTP generated for {masked_phone}, but SMS delivery is not configured. Check the server terminal."
-
     return {
         "success": True,
-        "sms_sent": sms_sent is True,
-        "message": final_msg,
+        "sms_sent": sms_sent,
+        "message": f"OTP sent to {masked_phone} via SMS. Check your messages." if sms_sent else f"OTP generated for {masked_phone}, but SMS delivery is not configured. Check the server terminal.",
         "phone_masked": masked_phone,
         "otp_hint": f"OTP starts with {otp_code[:2]}**",
         "expires_in": "5 minutes"
@@ -426,8 +393,14 @@ async def request_otp(data: Dict):
 async def verify_otp(data: Dict):
     """
     Verify OTP and log in voter.
+    
+    Flow:
+    1. Receive Aadhaar + OTP
+    2. Get voter's email from database
+    3. Verify OTP with Supabase Auth
+    4. Create session token
+    5. Return voter credentials
     """
-    voter_id = data.get("voter_id")
     aadhaar_number = data.get("aadhaar_number")
     otp_code = data.get("otp")
     
@@ -440,8 +413,8 @@ async def verify_otp(data: Dict):
     # Get voter from database
     voter = db.get_voter_by_aadhaar(aadhaar_number)
     
-    if not voter or (voter_id and voter.get("voter_id") != voter_id):
-        raise HTTPException(status_code=404, detail="Voter not found or mismatch.")
+    if not voter:
+        raise HTTPException(status_code=404, detail="Voter not found")
     
     email = voter.get("email") or f"{voter['voter_id'].lower()}@local.test"
     
@@ -504,20 +477,12 @@ async def request_otp_signup(data: Dict):
         
     phone = normalize_phone_number(phone)
     
-    # Check if voter already exists
+    # Check if voter already exists (from admin upload)
     voter = db.get_voter_by_aadhaar(aadhaar_number)
-    if voter:
-        raise HTTPException(
-            status_code=400, 
-            detail="A voter with this Aadhaar number is already registered. Please login using your Voter ID instead."
-        )
     
-    # Check if phone number is already used
-    if hasattr(db, 'get_phone_by_aadhaar'):
-        # Just sanity-checking if phone exists for another voter, but we don't have a direct phone lookup by phone in the wrapper easily.
-        # It's better to just block the Aadhar first.
-        pass
-
+    # If they are already uploaded by admin, maybe they have a preset phone. 
+    # But we will trust the phone they provide and just use it for OTP.
+    
     otp_code = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
     otp_session_key = f"otp_reg_{aadhaar_number}"
     
@@ -546,17 +511,10 @@ async def request_otp_signup(data: Dict):
     
     masked_phone = "***" + phone[-4:] if len(phone) >= 4 else "local-mode"
     
-    if sms_sent is True:
-        final_msg = f"OTP sent to {masked_phone} via SMS. Check your messages."
-    elif isinstance(sms_sent, str):
-        final_msg = f"SMS failed: {sms_sent}"
-    else:
-        final_msg = f"OTP generated for {masked_phone}, but SMS delivery is not configured. Check the server terminal."
-
     return {
         "success": True,
-        "sms_sent": sms_sent is True,
-        "message": final_msg,
+        "sms_sent": sms_sent,
+        "message": f"OTP sent to {masked_phone} via SMS. Check your messages." if sms_sent else f"OTP generated for {masked_phone}, but SMS delivery is not configured. Check the server terminal.",
         "phone_masked": masked_phone,
         "otp_hint": f"OTP starts with {otp_code[:2]}**",
         "expires_in": "5 minutes"
@@ -618,14 +576,6 @@ async def register_voter(registration: VoterRegistration):
         'phone': phone,
         'registered_at': datetime.now().isoformat()
     }
-    
-    # Double check no duplicate Aadhar before DB insert
-    existing_voter = db.get_voter_by_aadhaar(registration.aadhaar_number)
-    if existing_voter:
-        raise HTTPException(
-            status_code=400, 
-            detail="A voter with this Aadhaar number is already registered. Please login using your Voter ID instead."
-        )
     
     try:
         result = db.register_voter(voter_data)

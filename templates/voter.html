@@ -120,9 +120,27 @@
                 <form id="loginForm">
                     <div class="form-group">
                         <label data-translate="voterId">Voter ID</label>
-                        <input type="text" id="voterId" data-translate="enterVoterId" placeholder="Enter your Voter ID" required>
+                        <input type="text" id="loginVoterId" data-translate="enterVoterId" placeholder="Enter your Voter ID" required>
                     </div>
-                    <button type="submit" class="btn btn-primary" data-translate="login">Login</button>
+                    <div class="form-group">
+                        <label>Aadhaar Card Number</label>
+                        <input type="text" id="loginAadhaar" placeholder="Enter 12-digit Aadhaar Number" pattern="[0-9]{12}" minlength="12" maxlength="12" required>
+                    </div>
+                    <div class="form-group" id="loginMobileGroup" style="display: none;">
+                        <label>Mobile Number</label>
+                        <input type="text" id="loginMobile" placeholder="Fetched automatically..." readonly>
+                    </div>
+                    
+                    <button type="button" id="loginRequestOtpBtn" class="btn btn-secondary" style="margin-bottom: 15px; display: none;">Send OTP</button>
+                    
+                    <div id="loginOtpSection" class="form-section" style="display: none;">
+                        <div class="form-group">
+                            <label>Enter OTP</label>
+                            <input type="text" id="loginOtp" placeholder="Enter 6-digit OTP" pattern="[0-9]{6}" minlength="6" maxlength="6">
+                            <small id="loginOtpDisplay" class="otp-display"></small>
+                        </div>
+                        <button type="submit" id="loginVerifyBtn" class="btn btn-primary" data-translate="login">Verify OTP & Login</button>
+                    </div>
                 </form>
             </div>
         </div>
@@ -367,7 +385,7 @@
         }
     </style>
 
-    <script src="/static/voter.js"></script>
+    <script src="/static/voter.js?v=2"></script>
     <script src="/static/responsive-utils.js"></script>
 </body>
 </html>

@@ -191,6 +191,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const registerForm = document.getElementById('registerForm');
     const loginForm = document.getElementById('loginForm');
+    const loginAadhaarInput = document.getElementById('loginAadhaar');
+    const loginRequestOtpBtn = document.getElementById('loginRequestOtpBtn');
     const requestOtpBtn = document.getElementById('requestOtpBtn');
     const logoutBtn = document.getElementById('logoutBtn');
     const verifyForm = document.getElementById('verifyForm');
@@ -203,6 +205,79 @@ document.addEventListener('DOMContentLoaded', function() {
     requestOtpBtn.addEventListener('click', requestOtp);
     logoutBtn.addEventListener('click', handleLogout);
     verifyForm.addEventListener('submit', handleVerifyVote);
+    
+    if (loginAadhaarInput) {
+        loginAadhaarInput.addEventListener('input', async function() {
+            const aadhaar = this.value;
+            const voterId = document.getElementById('loginVoterId').value;
+            if (aadhaar.length === 12) {
+                if (!voterId) {
+                    showMessage('Please enter Voter ID first', 'error');
+                    return;
+                }
+                try {
+                    const response = await fetch('/api/voter/fetch-phone', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ voter_id: voterId, aadhaar_number: aadhaar })
+                    });
+                    const data = await response.json();
+                    if (response.ok) {
+                        document.getElementById('loginMobileGroup').style.display = 'block';
+                        document.getElementById('loginMobile').value = data.phone;
+                        loginRequestOtpBtn.style.display = 'inline-block';
+                        loginRequestOtpBtn.disabled = false;
+                        showMessage('Mobile number fetched successfully', 'success');
+                    } else {
+                        showMessage(data.detail || 'Could not fetch mobile number', 'error');
+                        document.getElementById('loginMobileGroup').style.display = 'none';
+                        loginRequestOtpBtn.style.display = 'none';
+                    }
+                } catch (e) {
+                    showMessage('Error fetching mobile number', 'error');
+                }
+            } else {
+                document.getElementById('loginMobileGroup').style.display = 'none';
+                loginRequestOtpBtn.style.display = 'none';
+                document.getElementById('loginOtpSection').style.display = 'none';
+            }
+        });
+    }
+    
+    if (loginRequestOtpBtn) {
+        loginRequestOtpBtn.addEventListener('click', async function() {
+            const aadhaar = document.getElementById('loginAadhaar').value;
+            const voterId = document.getElementById('loginVoterId').value;
+            try {
+                loginRequestOtpBtn.disabled = true;
+                loginRequestOtpBtn.textContent = 'Sending...';
+                
+                const response = await fetch('/api/voter/request-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ aadhaar_number: aadhaar, voter_id: voterId })
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('loginOtpSection').style.display = 'block';
+                    document.getElementById('loginOtpDisplay').textContent = `OTP sent to ${data.phone_masked || 'your number'}.`;
+                    // We only require OTP input to be valid before submitting the form
+                    document.getElementById('loginOtp').setAttribute('required', 'required');
+                    showMessage(data.message || 'OTP sent successfully', 'success');
+                } else {
+                    showMessage(data.detail || 'Failed to send OTP', 'error');
+                }
+                
+                loginRequestOtpBtn.textContent = 'Resend OTP';
+                loginRequestOtpBtn.disabled = false;
+            } catch (err) {
+                showMessage('Error sending OTP', 'error');
+                loginRequestOtpBtn.textContent = 'Send OTP';
+                loginRequestOtpBtn.disabled = false;
+            }
+        });
+    }
     
     document.querySelectorAll('.auth-tab-btn').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -357,13 +432,20 @@ async function handleRegister(e) {
 async function handleLogin(e) {
     e.preventDefault();
     
-    const voterIdInput = document.getElementById('voterId').value;
+    const voterIdInput = document.getElementById('loginVoterId').value;
+    const aadhaarInput = document.getElementById('loginAadhaar').value;
+    const otpInput = document.getElementById('loginOtp').value;
+    
+    if (!voterIdInput || !aadhaarInput || !otpInput) {
+        showMessage('Please complete all fields', 'error');
+        return;
+    }
     
     try {
-        const response = await fetch('/api/voter/login', {
+        const response = await fetch('/api/voter/verify-otp', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ voter_id: voterIdInput })
+            body: JSON.stringify({ voter_id: voterIdInput, aadhaar_number: aadhaarInput, otp: otpInput })
         });
         
         const data = await response.json();

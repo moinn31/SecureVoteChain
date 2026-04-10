@@ -11,7 +11,7 @@ python-dotenv>=1.0.0
 # Database - Choose ONE:
 # Option 1: Supabase PostgreSQL (Recommended for Production)
 supabase
-postgrest-py>=0.10.0
+# postgrest-py>=0.10.0
 
 # Option 2: SQLAlchemy + PostgreSQL
 # psycopg2-binary>=2.9.9
