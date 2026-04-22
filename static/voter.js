@@ -3,6 +3,8 @@ let voterToken = null;
 let voterId = null;
 let voterState = null;
 let votedElections = new Set(); // Track elections where user has voted
+let voterRefreshInterval = null;
+const VOTER_REFRESH_MS = 10000;
 
 function getVotedElectionsStorageKey() {
     return voterId ? `votedElections_${voterId}` : 'votedElections';
@@ -170,10 +172,36 @@ function restoreSession() {
         
         // Load elections
         loadElections();
+        startVoterRefresh();
         
         console.log('Voter session restored successfully');
     } else {
         console.log('No valid voter session found in localStorage');
+    }
+}
+
+function startVoterRefresh() {
+    stopVoterRefresh();
+
+    if (!sessionToken) {
+        return;
+    }
+
+    const refreshElections = async () => {
+        if (!sessionToken) {
+            return;
+        }
+
+        await loadElections();
+    };
+
+    voterRefreshInterval = setInterval(refreshElections, VOTER_REFRESH_MS);
+}
+
+function stopVoterRefresh() {
+    if (voterRefreshInterval) {
+        clearInterval(voterRefreshInterval);
+        voterRefreshInterval = null;
     }
 }
 
@@ -489,6 +517,7 @@ function handleLogout() {
     voterToken = null;
     voterState = null;
     votedElections.clear(); // Clear voted elections tracking
+    stopVoterRefresh();
     const votedElectionsKey = getVotedElectionsStorageKey();
     
     // Clear localStorage
@@ -508,6 +537,7 @@ function handleLogout() {
 async function loadElections() {
     try {
         const response = await fetch('/api/elections', {
+            cache: 'no-store',
             headers: {
                 'Authorization': `Bearer ${sessionToken}`
             }
@@ -725,6 +755,7 @@ async function checkIfVoted(electionId) {
     // Check with backend if this voter has already voted
     try {
         const response = await fetch(`/api/vote-status/${electionId}`, {
+            cache: 'no-store',
             headers: {
                 'Authorization': `Bearer ${sessionToken}`
             }
@@ -775,6 +806,7 @@ async function castVote(electionId) {
     
     try {
         const response = await fetch('/api/vote', {
+            cache: 'no-store',
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -800,6 +832,7 @@ async function castVote(electionId) {
             
             // Get election details
             const electionsResponse = await fetch('/api/elections', {
+                cache: 'no-store',
                 headers: { 'Authorization': `Bearer ${sessionToken}` }
             });
             const electionsData = await electionsResponse.json();
@@ -842,6 +875,7 @@ async function handleVerifyVote(e) {
     
     try {
         const response = await fetch('/api/verify-vote', {
+            cache: 'no-store',
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ transaction_hash: transactionHash })
@@ -978,7 +1012,7 @@ function closeVoterElectionChart() {
 
 async function loadVoterElectionChart(electionId, electionStatus) {
     try {
-        const response = await fetch(`/api/elections/${electionId}/results`);
+        const response = await fetch(`/api/elections/${electionId}/results`, { cache: 'no-store' });
         
         if (response.ok) {
             const data = await response.json();

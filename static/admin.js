@@ -4,6 +4,8 @@ let adminRole = null;
 let notifications = [];
 let lastVoteCount = 0;
 let notificationInterval = null;
+let dashboardRefreshInterval = null;
+const DASHBOARD_REFRESH_MS = 10000;
 
 function normalizeImageSrc(value) {
     if (typeof value !== 'string') return null;
@@ -142,6 +144,8 @@ function restoreAdminSession() {
         if (adminRoleEl) {
             adminRoleEl.textContent = storedRole === 'super_admin' ? 'Super Admin' : 'State Admin';
         }
+
+        startDashboardRefresh();
         
         // Filter state dropdown based on admin's access
         const stateDropdown = document.getElementById('electionState');
@@ -488,6 +492,32 @@ async function handleLogin(e) {
     }
 }
 
+function startDashboardRefresh() {
+    stopDashboardRefresh();
+
+    if (!sessionToken) {
+        return;
+    }
+
+    const refreshDashboard = async () => {
+        if (!sessionToken) {
+            return;
+        }
+
+        await Promise.allSettled([loadDashboardStats(), loadElections()]);
+    };
+
+    refreshDashboard();
+    dashboardRefreshInterval = setInterval(refreshDashboard, DASHBOARD_REFRESH_MS);
+}
+
+function stopDashboardRefresh() {
+    if (dashboardRefreshInterval) {
+        clearInterval(dashboardRefreshInterval);
+        dashboardRefreshInterval = null;
+    }
+}
+
 function handleLogout() {
     // Log logout action before clearing session
     if (sessionToken) {
@@ -496,6 +526,7 @@ function handleLogout() {
     
     // Stop notification polling
     stopNotificationPolling();
+    stopDashboardRefresh();
     clearNotifications();
     
     sessionToken = null;
@@ -809,6 +840,7 @@ async function handleCreateElection(e) {
 async function loadElections() {
     try {
         const response = await fetch('/api/elections', {
+            cache: 'no-store',
             headers: {
                 'Authorization': `Bearer ${sessionToken}`
             }
@@ -958,6 +990,7 @@ async function loadVoters() {
 async function loadStatistics() {
     try {
         const response = await fetch('/api/admin/dashboard', {
+            cache: 'no-store',
             headers: {
                 'Authorization': `Bearer ${sessionToken}`
             }
@@ -1045,6 +1078,7 @@ async function loadDashboardStats() {
     try {
         // Fetch elections
         const electionsResponse = await fetch('/api/elections', {
+            cache: 'no-store',
             headers: { 'Authorization': `Bearer ${sessionToken}` }
         });
         
@@ -1081,6 +1115,7 @@ async function loadDashboardStats() {
         
         // Fetch votes count
         const votesResponse = await fetch('/api/votes', {
+            cache: 'no-store',
             headers: { 'Authorization': `Bearer ${sessionToken}` }
         });
         
@@ -1091,6 +1126,7 @@ async function loadDashboardStats() {
         
         // Fetch voters count
         const votersResponse = await fetch('/api/voters', {
+            cache: 'no-store',
             headers: { 'Authorization': `Bearer ${sessionToken}` }
         });
         
@@ -1108,7 +1144,7 @@ async function loadDashboardStats() {
         }
         
         // Fetch blockchain info
-        const blockchainResponse = await fetch('/api/blockchain');
+        const blockchainResponse = await fetch('/api/blockchain', { cache: 'no-store' });
         
         if (blockchainResponse.ok) {
             const blockchainData = await blockchainResponse.json();
@@ -2085,6 +2121,7 @@ function addNotification(icon, title, message) {
 async function checkForNewActivity() {
     try {
         const response = await fetch('/api/admin/dashboard', {
+            cache: 'no-store',
             headers: { 'Authorization': `Bearer ${sessionToken}` }
         });
         
@@ -2102,6 +2139,7 @@ async function checkForNewActivity() {
             }
             
             lastVoteCount = currentVoteCount;
+            await Promise.allSettled([loadDashboardStats(), loadElections()]);
         }
     } catch (error) {
         console.error('Error checking activity:', error);

@@ -5,8 +5,21 @@ Switch between JSON files (development) and Supabase PostgreSQL (production)
 import os
 from typing import Any
 
-# Database mode: 'json' or 'supabase'
-DATABASE_MODE = os.getenv('DATABASE_MODE', 'json')  # Default to JSON for development
+# Database mode: 'json', 'supabase', or unset for auto-detect
+DATABASE_MODE = os.getenv('DATABASE_MODE', '').strip().lower()
+SUPABASE_URL = os.getenv('SUPABASE_URL', '').strip()
+SUPABASE_KEY = os.getenv('SUPABASE_KEY', '').strip()
+
+
+def should_use_supabase() -> bool:
+    """Pick Supabase whenever it is explicitly requested or fully configured."""
+    if DATABASE_MODE == 'json':
+        return False
+
+    if DATABASE_MODE == 'supabase':
+        return bool(SUPABASE_URL and SUPABASE_KEY)
+
+    return bool(SUPABASE_URL and SUPABASE_KEY)
 
 
 def get_database() -> Any:
@@ -17,7 +30,7 @@ def get_database() -> Any:
         from backend.db_config import get_database
         db = get_database()
     """
-    if DATABASE_MODE == 'supabase':
+    if should_use_supabase():
         try:
             from backend.secure_supabase_db import SecureSupabaseDatabase
             print("� Using SECURE Supabase Database (Encrypted + Zero-Knowledge)")
@@ -51,14 +64,14 @@ def is_production() -> bool:
 
 def get_database_url() -> str:
     """Get database connection URL."""
-    if DATABASE_MODE == 'supabase':
-        return os.getenv('SUPABASE_URL', '')
+    if should_use_supabase():
+        return SUPABASE_URL
     return 'json://local/data'
 
 
 # Database configuration settings
 DB_CONFIG = {
-    'mode': DATABASE_MODE,
+    'mode': DATABASE_MODE or ('supabase' if should_use_supabase() else 'json'),
     'is_production': is_production(),
     'connection_url': get_database_url(),
     'max_connections': int(os.getenv('DB_MAX_CONNECTIONS', '10')),
