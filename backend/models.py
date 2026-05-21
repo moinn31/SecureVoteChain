@@ -99,3 +99,30 @@ class VoteRequest(BaseModel):
 class VoteVerification(BaseModel):
     """Request to verify a vote."""
     transaction_hash: str
+
+
+class VoterFetchPhoneRequest(BaseModel):
+    """Request to fetch a voter's phone number."""
+    voter_id: Optional[str] = None
+    aadhaar_number: str
+
+
+class VoterRequestOtpRequest(BaseModel):
+    """Request to generate and send an OTP to a voter."""
+    aadhaar_number: str
+    voter_id: Optional[str] = None
+
+
+class VoterVerifyOtpRequest(BaseModel):
+    """Request to verify an OTP and authenticate."""
+    aadhaar_number: str
+    otp: str
+    voter_id: Optional[str] = None
+
+
+class VoterSignupOtpRequest(BaseModel):
+    """Request to generate and send an OTP for registration/signup."""
+    aadhaar_number: str
+    phone: str
+    name: str
+

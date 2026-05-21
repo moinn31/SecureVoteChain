@@ -33,26 +33,26 @@ def get_database() -> Any:
     if should_use_supabase():
         try:
             from backend.secure_supabase_db import SecureSupabaseDatabase
-            print("� Using SECURE Supabase Database (Encrypted + Zero-Knowledge)")
+            print("[DB] Using SECURE Supabase Database (Encrypted + Zero-Knowledge)")
             return SecureSupabaseDatabase()
         except ImportError:
-            print("⚠️  Supabase or cryptography not installed. Run: pip install supabase cryptography")
-            print("📁 Falling back to JSON file database")
+            print("[WARN] Supabase or cryptography not installed. Run: pip install supabase cryptography")
+            print("[DB] Falling back to JSON file database")
             from backend.database import Database
             return Database()
         except ValueError as e:
-            print(f"⚠️  Supabase configuration error: {e}")
-            print("📁 Falling back to JSON file database")
+            print(f"[WARN] Supabase configuration error: {e}")
+            print("[DB] Falling back to JSON file database")
             from backend.database import Database
             return Database()
         except Exception as e:
-            print(f"⚠️  Supabase initialization failed: {e}")
-            print("📁 Falling back to JSON file database")
+            print(f"[WARN] Supabase initialization failed: {e}")
+            print("[DB] Falling back to JSON file database")
             from backend.database import Database
             return Database()
     else:
         from backend.database import Database
-        print("📁 Using JSON File Database (Development Mode)")
+        print("[DB] Using JSON File Database (Development Mode)")
         return Database()
 
 

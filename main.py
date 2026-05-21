@@ -1,4 +1,12 @@
+import sys
 import socket
+# Fix Windows console encoding for emoji/Unicode characters
+if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 # Patch getaddrinfo to bypass DNS issues with supabase
 _orig_getaddrinfo = socket.getaddrinfo
 def patched_getaddrinfo(*args, **kwargs):
@@ -21,29 +29,45 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import io
 import os
-from twilio.rest import Client
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
 
+# Optional Twilio import (graceful if not installed)
+try:
+    from twilio.rest import Client as TwilioClient
+    TWILIO_AVAILABLE = True
+except ImportError:
+    TwilioClient = None
+    TWILIO_AVAILABLE = False
+    print("[WARN] Twilio not installed - SMS OTP will be skipped")
+
 from backend.models import (
     VoterRegistration, VoterLogin, AdminLogin, 
-    ElectionCreate, VoteRequest, VoteVerification, Candidate, INDIAN_STATES
+    ElectionCreate, VoteRequest, VoteVerification, Candidate, INDIAN_STATES,
+    VoterFetchPhoneRequest, VoterRequestOtpRequest, VoterVerifyOtpRequest, VoterSignupOtpRequest
 )
 from backend.auth import VoterAuth, AdminAuth, MockAadhaarAuth
 from backend.db_config import get_database
 from backend.encryption import hash_voter_token
 
-app = FastAPI(title="Blockchain Voting System")
+app = FastAPI(
+    title="SecureVoteChain - Blockchain E-Voting System",
+    description="A secure, transparent blockchain-based electronic voting platform with Zero-Knowledge Proofs and Ring Signatures.",
+    version="1.0.0"
+)
 
-# CORS Configuration - Only allow localhost
+# CORS Configuration - Allow localhost on all common ports + 127.0.0.1
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:5000",
-        "http://localhost:8000"
+        "http://localhost:8000",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5000",
+        "http://127.0.0.1:8000",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -54,10 +78,45 @@ db = get_database()
 
 # Configure AdminAuth to use database for authentication
 AdminAuth.set_database(db)
-print("✅ AdminAuth configured to use database authentication")
+print("[OK] AdminAuth configured to use database authentication")
 
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+# ─── Startup Event: Auto-update election statuses ─────────────────────────────
+@app.on_event("startup")
+async def startup_tasks():
+    """Run background tasks on server startup."""
+    try:
+        _auto_update_election_statuses()
+        print("[OK] Startup tasks completed")
+    except Exception as e:
+        print(f"[WARN] Startup tasks failed: {e}")
+
+
+def _auto_update_election_statuses():
+    """Mark elections as 'ended' if their end_time has passed."""
+    try:
+        elections = db.get_all_elections()
+        now = datetime.now()
+        updated = 0
+        for election in elections:
+            if election.get("status") == "active":
+                end_time_str = election.get("end_time", "")
+                if end_time_str:
+                    try:
+                        end_time = datetime.fromisoformat(end_time_str.replace("Z", ""))
+                        if now > end_time:
+                            if hasattr(db, 'update_election_status'):
+                                db.update_election_status(election["id"], "ended")
+                            updated += 1
+                    except Exception:
+                        pass
+        if updated:
+            print(f"[OK] Auto-closed {updated} expired election(s)")
+    except Exception as e:
+        print(f"[WARN] Could not auto-update election statuses: {e}")
 
 
 # Middleware to check role-based access
@@ -304,22 +363,24 @@ async def admin_login(login: AdminLogin):
 
 def send_otp_sms(phone, otp_code, context):
     try:
-        from twilio.rest import Client
+        if not TWILIO_AVAILABLE or TwilioClient is None:
+            print("[WARN] Twilio not available - SMS skipped")
+            return False
         twilio_sid = os.getenv("TWILIO_ACCOUNT_SID")
         twilio_token = os.getenv("TWILIO_AUTH_TOKEN")
         twilio_from_number = os.getenv("TWILIO_PHONE_NUMBER") or os.getenv("TWILIO_FROM_NUMBER") or os.getenv("TWILIO_MESSAGING_NUMBER")
         
         if twilio_sid and twilio_token and twilio_from_number:
-            client = Client(twilio_sid, twilio_token)
+            client = TwilioClient(twilio_sid, twilio_token)
             message = client.messages.create(
-                body=f"E- voting verification code : {otp_code}",
+                body=f"SecureVoteChain OTP [{context}]: {otp_code}. Valid for 5 minutes. Do not share.",
                 from_=twilio_from_number,
                 to=phone,
             )
-            print(f"✅ Twilio SMS sent successfully to {phone} (SID: {message.sid})")
+            print(f"[OK] Twilio SMS sent successfully to {phone} (SID: {message.sid})")
             return True
         else:
-            print("⚠️ Twilio SMS credentials missing from .env. Skipping SMS.")
+            print("[WARN] Twilio SMS credentials missing from .env. Skipping SMS.")
             return False
     except Exception as twilio_error:
         print(f"❌ Twilio SMS failed: {twilio_error}")
@@ -327,15 +388,15 @@ def send_otp_sms(phone, otp_code, context):
 
 
 @app.post("/api/voter/fetch-phone")
-async def fetch_phone(data: Dict):
-    voter_id = data.get("voter_id")
-    aadhaar_number = data.get("aadhaar_number")
+async def fetch_phone(data: VoterFetchPhoneRequest):
+    voter_id = data.voter_id
+    aadhaar_number = data.aadhaar_number
     
-    if not voter_id or not aadhaar_number or len(aadhaar_number) != 12:
+    if not aadhaar_number or len(aadhaar_number) != 12:
         raise HTTPException(status_code=400, detail="Invalid inputs")
         
     voter = db.get_voter_by_aadhaar(aadhaar_number)
-    if not voter or voter.get("voter_id") != voter_id:
+    if not voter or (voter_id and voter.get("voter_id") != voter_id):
         raise HTTPException(status_code=404, detail="Invalid Voter ID or Aadhaar Number")
         
     phone = db.get_phone_by_aadhaar(aadhaar_number)
@@ -346,12 +407,12 @@ async def fetch_phone(data: Dict):
          raise HTTPException(status_code=404, detail="No registered mobile number found")
 
 @app.post("/api/voter/request-otp")
-async def request_otp(data: Dict):
+async def request_otp(data: VoterRequestOtpRequest):
     """
     Request OTP for voter login via SMS.
     """
-    aadhaar_number = data.get("aadhaar_number")
-    voter_id = data.get("voter_id")
+    aadhaar_number = data.aadhaar_number
+    voter_id = data.voter_id
     
     if not aadhaar_number or len(aadhaar_number) != 12:
         raise HTTPException(status_code=400, detail="Invalid Aadhaar number (must be 12 digits)")
@@ -423,13 +484,13 @@ async def request_otp(data: Dict):
 
 
 @app.post("/api/voter/verify-otp")
-async def verify_otp(data: Dict):
+async def verify_otp(data: VoterVerifyOtpRequest):
     """
     Verify OTP and log in voter.
     """
-    voter_id = data.get("voter_id")
-    aadhaar_number = data.get("aadhaar_number")
-    otp_code = data.get("otp")
+    voter_id = data.voter_id
+    aadhaar_number = data.aadhaar_number
+    otp_code = data.otp
     
     if not aadhaar_number or len(aadhaar_number) != 12:
         raise HTTPException(status_code=400, detail="Invalid Aadhaar number")
@@ -492,10 +553,10 @@ async def verify_otp(data: Dict):
 
 
 @app.post("/api/voter/request-otp-signup")
-async def request_otp_signup(data: Dict):
-    aadhaar_number = data.get("aadhaar_number")
-    phone = data.get("phone")
-    name = data.get("name")
+async def request_otp_signup(data: VoterSignupOtpRequest):
+    aadhaar_number = data.aadhaar_number
+    phone = data.phone
+    name = data.name
     
     if not aadhaar_number or len(aadhaar_number) != 12:
         raise HTTPException(status_code=400, detail="Invalid Aadhaar number")
@@ -1789,6 +1850,261 @@ async def download_voter_template(request: Request):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate template: {str(e)}")
+
+# ──────────────────────────────────────────────────────────────────────────────
+# NEW ENDPOINTS (added features)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@app.get("/api/voter/profile")
+async def get_voter_profile(request: Request):
+    """Get the currently logged-in voter's profile and vote history."""
+    session = check_voter_access(request)
+    voter_id = session.get("voter_id")
+
+    voter = db.get_voter(voter_id)
+    if not voter:
+        raise HTTPException(status_code=404, detail="Voter profile not found")
+
+    # Get all elections to check voting history
+    all_elections = db.get_all_elections()
+    voter_token = session.get("voter_token", "")
+    
+    vote_history = []
+    for election in all_elections:
+        if db.has_voted(election["id"], voter_token):
+            vote_history.append({
+                "election_id": election["id"],
+                "election_title": election.get("title", "Unknown"),
+                "state": election.get("state", "Unknown"),
+                "voted_at": election.get("created_at", "")
+            })
+
+    return {
+        "success": True,
+        "voter_id": voter_id,
+        "name": voter.get("name", "Unknown"),
+        "state": voter.get("state", "Unknown"),
+        "registered_at": voter.get("registered_at", ""),
+        "vote_count": len(vote_history),
+        "vote_history": vote_history
+    }
+
+
+@app.patch("/api/admin/elections/{election_id}/status")
+async def update_election_status(election_id: str, data: Dict, request: Request):
+    """Manually update election status (admin only). Body: {"status": "active"|"ended"|"pending"}"""
+    session = check_admin_access(request)
+    admin_state = session.get("state")
+    admin_role = session.get("role", "")
+
+    election = db.get_election_by_id(election_id)
+    if not election:
+        raise HTTPException(status_code=404, detail="Election not found")
+
+    # State-based access control
+    if admin_role != "super_admin" and admin_state != "All States":
+        if election.get("state") != admin_state:
+            raise HTTPException(status_code=403, detail=f"Access denied. You can only manage {admin_state} elections.")
+
+    new_status = data.get("status", "").lower()
+    if new_status not in ("active", "ended", "pending"):
+        raise HTTPException(status_code=400, detail="Invalid status. Must be 'active', 'ended', or 'pending'.")
+
+    if hasattr(db, 'update_election_status'):
+        db.update_election_status(election_id, new_status)
+    else:
+        # Fallback: update via save_election if update_election_status not available
+        election["status"] = new_status
+        db.save_election(election)
+
+    print(f"[OK] Election {election_id} status updated to '{new_status}' by {session.get('username')}")
+    return {
+        "success": True,
+        "election_id": election_id,
+        "new_status": new_status,
+        "message": f"Election status updated to '{new_status}'"
+    }
+
+
+@app.get("/api/public/live-results")
+async def get_live_results(election_id: Optional[str] = None):
+    """
+    Public endpoint for real-time election results.
+    Returns results for a specific election or all active elections.
+    No authentication required.
+    """
+    try:
+        if election_id:
+            election = db.get_election_by_id(election_id)
+            if not election:
+                raise HTTPException(status_code=404, detail="Election not found")
+            
+            results = db.get_election_results(election_id)
+            votes = db.get_votes_by_election(election_id)
+            total_votes = len(votes)
+            
+            candidates = election.get("candidates", [])
+            if isinstance(candidates, str):
+                import json
+                try:
+                    candidates = json.loads(candidates)
+                except Exception:
+                    candidates = []
+
+            candidate_results = []
+            for c in candidates:
+                vote_count = results.get(c["id"], 0)
+                candidate_results.append({
+                    "id": c["id"],
+                    "name": c["name"],
+                    "party": c.get("party", ""),
+                    "symbol": c.get("symbol", ""),
+                    "votes": vote_count,
+                    "percentage": round((vote_count / total_votes * 100), 2) if total_votes > 0 else 0
+                })
+            candidate_results.sort(key=lambda x: x["votes"], reverse=True)
+
+            return {
+                "success": True,
+                "election_id": election_id,
+                "title": election.get("title"),
+                "state": election.get("state"),
+                "status": election.get("status"),
+                "total_votes": total_votes,
+                "results": candidate_results,
+                "last_updated": datetime.now().isoformat()
+            }
+        else:
+            # Return summary of all active elections
+            elections = db.get_all_elections()
+            active = [e for e in elections if e.get("status") == "active"]
+            summaries = []
+            for e in active:
+                votes = db.get_votes_by_election(e["id"])
+                summaries.append({
+                    "election_id": e["id"],
+                    "title": e.get("title"),
+                    "state": e.get("state"),
+                    "total_votes": len(votes),
+                    "status": e.get("status")
+                })
+            return {
+                "success": True,
+                "active_elections": len(active),
+                "elections": summaries,
+                "last_updated": datetime.now().isoformat()
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/health/detailed")
+async def detailed_health_check():
+    """
+    Detailed health check endpoint.
+    Returns database status, blockchain integrity, and system info.
+    """
+    health = {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "database": {},
+        "blockchain": {},
+        "system": {}
+    }
+
+    # Check database
+    try:
+        elections = db.get_all_elections()
+        voters = db.get_all_voters()
+        db_type = type(db).__name__
+        health["database"] = {
+            "status": "connected",
+            "type": db_type,
+            "total_elections": len(elections),
+            "total_voters": len(voters)
+        }
+    except Exception as e:
+        health["database"] = {"status": "error", "error": str(e)}
+        health["status"] = "degraded"
+
+    # Check blockchain
+    try:
+        chain = db.blockchain.chain
+        is_valid = db.blockchain.is_chain_valid()
+        health["blockchain"] = {
+            "status": "valid" if is_valid else "invalid",
+            "chain_length": len(chain),
+            "is_valid": is_valid
+        }
+        if not is_valid:
+            health["status"] = "degraded"
+    except Exception as e:
+        health["blockchain"] = {"status": "error", "error": str(e)}
+
+    # System info
+    import platform
+    health["system"] = {
+        "python_version": sys.version.split()[0],
+        "platform": platform.system(),
+        "twilio_configured": TWILIO_AVAILABLE and bool(os.getenv("TWILIO_ACCOUNT_SID"))
+    }
+
+    return health
+
+
+@app.get("/api/admin/system-info")
+async def get_system_info(request: Request):
+    """Get comprehensive system information for admins."""
+    session = check_admin_access(request)
+    admin_state = session.get("state")
+
+    elections = db.get_all_elections()
+    voters = db.get_all_voters()
+
+    if admin_state != "All States":
+        elections = [e for e in elections if e.get("state") == admin_state]
+        voters = [v for v in voters if v.get("state") == admin_state]
+
+    all_votes = []
+    for e in elections:
+        all_votes.extend(db.get_votes_by_election(e["id"]))
+
+    active_elections = [e for e in elections if e.get("status") == "active"]
+    ended_elections = [e for e in elections if e.get("status") == "ended"]
+
+    return {
+        "success": True,
+        "admin_username": session.get("username"),
+        "admin_state": admin_state,
+        "admin_role": session.get("role"),
+        "statistics": {
+            "total_elections": len(elections),
+            "active_elections": len(active_elections),
+            "ended_elections": len(ended_elections),
+            "total_voters": len(voters),
+            "total_votes": len(all_votes),
+            "voter_turnout_percent": round((len(all_votes) / len(voters) * 100), 2) if voters else 0
+        },
+        "blockchain": {
+            "chain_length": len(db.blockchain.chain),
+            "is_valid": db.blockchain.is_chain_valid()
+        },
+        "database_type": type(db).__name__,
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@app.post("/api/admin/refresh-election-statuses")
+async def refresh_election_statuses(request: Request):
+    """Manually trigger election status auto-update (admin only)."""
+    check_admin_access(request)
+    try:
+        _auto_update_election_statuses()
+        return {"success": True, "message": "Election statuses refreshed successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

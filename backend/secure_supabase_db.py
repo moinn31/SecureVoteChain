@@ -750,14 +750,16 @@ class SecureSupabaseDatabase:
                 end_time = datetime.fromisoformat(election.get('end_time', '').replace('Z', '+00:00')) if election.get('end_time') else None
                 
                 if start_time and end_time:
-                    if current_time < start_time:
+                    # Resolve timezone comparison mismatch
+                    if start_time.tzinfo is not None:
+                        from datetime import timezone
+                        eval_current_time = datetime.now(timezone.utc)
+                    else:
+                        eval_current_time = current_time
+                    
+                    if eval_current_time < start_time:
                         election['status'] = 'pending'
-                    elif current_time > end_time:
-                        # Show elections up to 12 hours after end time
-                        hours_since_end = (current_time - end_time).total_seconds() / 3600
-                        if hours_since_end > 12:
-                            # Skip elections ended more than 12 hours ago
-                            continue
+                    elif eval_current_time > end_time:
                         election['status'] = 'ended'
                     else:
                         election['status'] = 'active'
