@@ -29,10 +29,9 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import io
 import os
-from dotenv import load_dotenv
+import os
 
-# Load environment variables from .env file
-load_dotenv()
+SECRET_KEY = os.environ.get("SECRET_KEY")
 
 # Optional Twilio import (graceful if not installed)
 try:
